@@ -54,6 +54,7 @@ test('invalid restore leaves the existing record intact after reload', async ({ 
 test('removed health records can be undone', async ({ page }) => {
   await page.goto('/demo');
   const cards = page.locator('.entry-card');
+  await expect(cards.first()).toBeVisible();
   const before = await cards.count();
   await cards.first().getByRole('button', { name: 'Remove entry' }).click();
   await page.waitForTimeout(300);
@@ -66,6 +67,7 @@ test('removed health records can be undone', async ({ page }) => {
 test('repeated removals can all be undone', async ({ page }) => {
   await page.goto('/demo');
   const cards = page.locator('.entry-card');
+  await expect(cards.first()).toBeVisible();
   const before = await cards.count();
   await cards.nth(0).getByRole('button', { name: 'Remove entry' }).click();
   await page.locator('.entry-card').nth(0).getByRole('button', { name: 'Remove entry' }).click();
@@ -208,5 +210,7 @@ test('static deployment rewrites only real SPA routes and serves a 404 page for 
   expect(config.navigationFallback).toBeUndefined();
   for (const route of ['/log', '/demo', '/privacy', '/terms']) expect(config.routes).toContainEqual({ route, rewrite: '/index.html' });
   expect(config.responseOverrides['404']).toEqual({ rewrite: '/404.html' });
-  expect(readFileSync('public/404.html', 'utf8')).toContain('<h1>This page is not in the notebook</h1>');
+  const notFound = readFileSync('public/404.html', 'utf8');
+  expect(notFound).toContain('<h1>This page is not in the notebook</h1>');
+  expect(notFound.match(/class="skip-link"/g)).toHaveLength(1);
 });

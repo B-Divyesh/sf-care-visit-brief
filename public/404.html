@@ -9,10 +9,12 @@
       body{margin:0;background:#f7f1e5;color:#1e2b3b;font:18px/1.5 ui-sans-serif,system-ui,sans-serif}
       main{max-width:760px;min-height:60vh;margin:auto;padding:72px 24px} h1{font:700 clamp(42px,7vw,64px)/1 Georgia,serif;letter-spacing:-.04em}
       a{display:inline-flex;align-items:center;min-height:44px;padding:8px 14px;background:#9b3f35;border:2px solid #9b3f35;color:#fffdf7;font-weight:700;text-decoration:none}
+      .skip-link{position:fixed;z-index:2;top:-80px;left:16px;background:#fffdf7;color:#1e2b3b}.skip-link:focus{top:16px}
       a:focus-visible{outline:3px solid #1e2b3b;outline-offset:3px}.eyebrow{color:#9b3f35;font-size:13px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
     </style>
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
     <main id="main">
       <p class="eyebrow">Page not found</p>
       <h1>This page is not in the notebook</h1>
