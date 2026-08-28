@@ -21,13 +21,16 @@ npm ci
 npm run dev
 npm test
 npm run build
+npm run test:live
 ```
 
 The deploy output is `dist/`, with `index.html` at its root. Deploy `dist/` as
 a static site with the included `staticwebapp.config.json`; it supplies the SPA
 fallback, immutable hashed-asset caching, security headers, and the real 404
 response. The claim tests and their demo instructions are in
-`.factory/claims.json` and `.factory/demo.md`.
+`.factory/claims.json` and `.factory/demo.md`. Run `test:live` after deployment;
+it verifies the production billing route, response policy, and deployed asset
+identity against the local `dist/` build.
 
 ## Optional one-time unlock
 

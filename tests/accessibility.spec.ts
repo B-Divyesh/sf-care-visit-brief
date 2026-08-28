@@ -16,6 +16,15 @@ for (const path of ['/', '/log', '/demo', '/privacy', '/terms', '/missing-page']
   });
 }
 
+test('each SPA route exposes one skip link to the main landmark', async ({ page }) => {
+  for (const path of ['/', '/log', '/demo', '/privacy', '/terms', '/missing-page']) {
+    await page.goto(path);
+    const skipLink = page.getByRole('link', { name: 'Skip to content' });
+    await expect(skipLink).toHaveCount(1);
+    await expect(skipLink).toHaveAttribute('href', '#main');
+  }
+});
+
 test('keyboard can save a first note', async ({ page }) => {
   await page.goto('/log');
   await page.getByLabel('What changed? optional').fill('Felt tired after work.');

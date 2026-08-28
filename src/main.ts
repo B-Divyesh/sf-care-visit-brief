@@ -29,6 +29,7 @@ let updateWorker: ServiceWorker | null = null;
 let updateReady = false;
 let reloadForUpdate = false;
 let licenseMessage = '';
+let licenseVerification: { token: string; promise: Promise<void> } | null = null;
 
 function route() { return location.pathname.replace(/\/$/, '') || '/'; }
 function isAppRoute() { return ['/', '/log', '/demo'].includes(route()); }
@@ -140,10 +141,7 @@ function printBrief() {
   if (!win) { announce('Your browser blocked the print window. Allow pop-ups and try again.'); return; }
   win.document.write(`<!doctype html><html lang="en"><head><title>Visit brief</title><style>body{font:16px Arial,sans-serif;color:#17222e;max-width:720px;margin:40px auto;padding:0 24px}h1{font:32px Georgia,serif}h2{font-size:18px;border-top:1px solid #87929d;padding-top:14px;margin-top:22px}p{line-height:1.45}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Print this brief</button><h1>Care Visit Brief</h1><p>Record from ${from === '0000-01-01' ? 'the beginning' : dateLabel(from)} to ${to === today() ? 'today' : dateLabel(to)}. This is a personal record, not medical advice.</p>${cover}${rows}</body></html>`); win.document.close();
 }
-async function verifyLicense(token?: string, announceResult = true) {
-  const value = token || document.querySelector<HTMLInputElement>('#license-token')?.value.trim() || localStorage.getItem(LICENSE_KEY);
-  if (!value) { if (announceResult) announce('Paste a license token first.'); return; }
-  localStorage.setItem(LICENSE_KEY, value);
+async function checkLicense(value: string) {
   licenseMessage = 'Checking license…';
   try {
     const response = await fetch(`${BILLING_BASE}/${PRODUCT_SLUG}/verify?license=${encodeURIComponent(value)}`);
@@ -158,6 +156,19 @@ async function verifyLicense(token?: string, announceResult = true) {
     licenseMessage = prior.valid ? 'Could not check the license now. Your saved unlock stays available until it can be checked.' : 'Could not check the license now. Try again when you are online.';
   }
   await render();
+}
+async function verifyLicense(token?: string, announceResult = true) {
+  const value = token || document.querySelector<HTMLInputElement>('#license-token')?.value.trim() || localStorage.getItem(LICENSE_KEY);
+  if (!value) { if (announceResult) announce('Paste a license token first.'); return; }
+  localStorage.setItem(LICENSE_KEY, value);
+  if (!licenseVerification || licenseVerification.token !== value) {
+    const promise = checkLicense(value);
+    licenseVerification = { token: value, promise };
+    void promise.finally(() => {
+      if (licenseVerification?.promise === promise) licenseVerification = null;
+    });
+  }
+  await licenseVerification.promise;
   if (announceResult) announce(licenseMessage);
 }
 async function importFile(file: File, recovery = false) {

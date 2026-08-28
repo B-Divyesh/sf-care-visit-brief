@@ -124,16 +124,37 @@ test('@claim:json-backup exports a versioned record with every sample entry', as
 });
 
 test('@claim:paid-unlock restores a verified purchase and includes its cover note in a printed brief', async ({ page }) => {
+  let verificationRequests = 0;
   await page.route('https://api.sociobot.in/api/v1/products/care-visit-brief/verify?license=demo-license', async route => {
+    verificationRequests += 1;
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: true, reason: 'ok', expires_at: null }) });
   });
-  await page.goto('/log?license=demo-license');
-  await expect(page).toHaveURL(/\/log$/);
-  await expect(page.locator('#license-status')).toHaveText('License active.');
+  await page.goto('/demo?license=demo-license');
+  await expect(page).toHaveURL(/\/demo$/);
+  await expect(page.locator('.live')).toHaveText('License active.');
+  expect(await page.evaluate(() => localStorage.getItem('sb_license:care-visit-brief'))).toBe('demo-license');
   await expect(page.getByLabel(/Personal cover note/)).toBeVisible();
-  await page.getByLabel('What changed? optional').fill('A real note for the brief.');
+  await page.getByLabel('What changed? optional').fill('A sample note for the brief.');
   await page.getByRole('button', { name: 'Save today’s note' }).click();
-  await expect(page.getByText('A real note for the brief.')).toBeVisible();
+  await expect(page.getByText('A sample note for the brief.')).toBeVisible();
+  expect(verificationRequests).toBe(1);
+  const namespaces = await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('care-visit-brief', 1);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    return new Promise<{ demoCount: number; real: unknown }>((resolve, reject) => {
+      const tx = db.transaction('entries');
+      const store = tx.objectStore('entries');
+      const demoRequest = store.get('demo:entries');
+      const realRequest = store.get('real:entries');
+      tx.oncomplete = () => resolve({ demoCount: Array.isArray(demoRequest.result) ? demoRequest.result.length : 0, real: realRequest.result });
+      tx.onerror = () => reject(tx.error);
+    });
+  });
+  expect(namespaces.demoCount).toBe(6);
+  expect(namespaces.real).toBeUndefined();
   await page.getByLabel(/Personal cover note/).fill('Ask about the evening flare.');
   const popup = page.waitForEvent('popup');
   await page.getByRole('button', { name: 'Open printable brief' }).click();

@@ -46,6 +46,6 @@
     "claim": "$12 one-time unlock includes a personal cover note for printed briefs",
     "where": "Landing, paid section, README",
     "test": "npm test -- --grep @claim:paid-unlock",
-    "sandbox": "recorded Sociobot verification response; returned license is saved, unlocks the cover note, and the printed brief contains it"
+    "sandbox": "fresh /demo entry; recorded Sociobot verification response; one verification request; demo-only note storage; returned license unlocks the cover note and the printed brief contains it"
   }
 ]
