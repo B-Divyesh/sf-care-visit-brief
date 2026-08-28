@@ -5,5 +5,5 @@ export default defineConfig({
   timeout: 30_000,
   workers: 1,
   use: { baseURL: 'http://127.0.0.1:4173', browserName: 'chromium', headless: true },
-  webServer: { command: 'npm run preview', url: 'http://127.0.0.1:4173', reuseExistingServer: true, timeout: 30_000 }
+  webServer: { command: 'npm run preview', url: 'http://127.0.0.1:4173', reuseExistingServer: false, timeout: 30_000 }
 });

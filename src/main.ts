@@ -29,15 +29,23 @@ let updateWorker: ServiceWorker | null = null;
 let updateReady = false;
 let reloadForUpdate = false;
 let licenseMessage = '';
-let licenseVerification: { token: string; promise: Promise<void> } | null = null;
+let demoSession = 0;
+let licenseVerification: { token: string; isDemo: boolean; demoSession: number; promise: Promise<void> } | null = null;
 
 function route() { return location.pathname.replace(/\/$/, '') || '/'; }
 function isAppRoute() { return ['/', '/log', '/demo'].includes(route()); }
 function namespace(isDemo = demo) { return isDemo ? 'demo' : 'real'; }
-function licenseVerdict(): { valid?: boolean; checked?: number } {
-  try { return JSON.parse(localStorage.getItem(VERDICT_KEY) || '{}') as { valid?: boolean; checked?: number }; } catch { return {}; }
+function localKey(key: string, isDemo = demo) { return isDemo ? `demo:${key}` : key; }
+function licenseKey(isDemo = demo) { return localKey(LICENSE_KEY, isDemo); }
+function verdictKey(isDemo = demo) { return localKey(VERDICT_KEY, isDemo); }
+function coverNoteKey(isDemo = demo) { return localKey(COVER_NOTE_KEY, isDemo); }
+function licenseVerdict(isDemo = demo): { valid?: boolean; checked?: number } {
+  try { return JSON.parse(localStorage.getItem(verdictKey(isDemo)) || '{}') as { valid?: boolean; checked?: number }; } catch { return {}; }
 }
 function premium() { return licenseVerdict().valid === true; }
+function clearDemoLocalState() {
+  for (const key of [LICENSE_KEY, VERDICT_KEY, COVER_NOTE_KEY]) localStorage.removeItem(localKey(key, true));
+}
 function dateLabel(date: string) { return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${date}T12:00:00`)); }
 function sorted() { return [...entries].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)); }
 function setTitle() {
@@ -65,7 +73,7 @@ function tagGroup(kind: keyof typeof tags, label: string) { return `<fieldset><l
 function restoreTools(prefix = '') { return `<label class="import-label">Restore from a backup <input id="${prefix}import-file" type="file" accept="application/json,.json" /></label><label class="restore-password">Password for an encrypted backup <input id="${prefix}restore-password" type="password" autocomplete="current-password" /></label>`; }
 function logUi() {
   const log = sorted();
-  const cover = premium() ? `<label>Personal cover note <span class="optional">included in your printed brief</span><textarea id="cover-note" maxlength="280" rows="2" placeholder="For example: My main question for this visit">${escapeHtml(localStorage.getItem(COVER_NOTE_KEY) || '')}</textarea></label>` : '';
+  const cover = premium() ? `<label>Personal cover note <span class="optional">included in your printed brief</span><textarea id="cover-note" maxlength="280" rows="2" placeholder="For example: My main question for this visit">${escapeHtml(localStorage.getItem(coverNoteKey()) || '')}</textarea></label>` : '';
   return `<section class="log-section" aria-labelledby="log-heading"><div class="section-label">Daily note</div><h2 id="log-heading">Record what changed</h2><p class="intro">A few marks are enough. You can add more only when it helps.</p><form id="entry-form" class="entry-form"><label>Date <input required type="date" name="date" max="${today()}" value="${today()}" /></label><fieldset><legend>How hard was it today?</legend><div class="severity-picker" role="group" aria-label="Symptom severity"><button type="button" data-severity="0" aria-pressed="false">0<br><small>None</small></button><button type="button" data-severity="1" aria-pressed="false">1<br><small>Mild</small></button><button type="button" data-severity="2" aria-pressed="true" class="selected">2<br><small>Noticeable</small></button><button type="button" data-severity="3" aria-pressed="false">3<br><small>Hard</small></button><button type="button" data-severity="4" aria-pressed="false">4<br><small>Severe</small></button></div></fieldset>${tagGroup('symptoms', 'Symptoms')}${tagGroup('triggers', 'Possible triggers')}${tagGroup('medications', 'Medicine changes')}<label>What changed? <span class="optional">optional</span><textarea name="note" maxlength="280" rows="3" placeholder="A short note in your own words"></textarea></label><button class="button" type="submit">Save today’s note</button><p class="fine">This log does not diagnose symptoms or recommend treatment.</p></form></section><section class="timeline" aria-labelledby="timeline-heading"><div class="section-label">Your record</div><h2 id="timeline-heading">Timeline</h2>${log.length ? `<p class="intro">Days without a note stay blank. That is useful context too.</p><div class="timeline-list">${log.map(entryCard).join('')}</div>` : `<div class="empty"><p><strong>Your notes will appear here.</strong></p><p>Start with a severity mark. You do not need to fill every field.</p></div>`}</section><section class="brief-tools" aria-labelledby="brief-heading"><div class="section-label">Appointment handoff</div><h2 id="brief-heading">Make a visit brief</h2><p class="intro">Choose a date range. The print view uses only the notes you saved.</p><div class="date-range"><label>From <input id="brief-from" type="date" max="${today()}" /></label><label>To <input id="brief-to" type="date" max="${today()}" value="${today()}" /></label></div>${cover}<div class="tool-actions"><button class="button" data-action="print">Open printable brief</button><button class="secondary" data-action="csv">Export CSV</button><button class="secondary" data-action="json">Export backup</button></div><details><summary>Make an encrypted backup</summary><p>Choose a password. You need it to restore this backup later.</p><label>Backup password <input id="backup-password" type="password" autocomplete="new-password" /></label><button class="secondary" data-action="encrypted" aria-label="Download encrypted backup">Download encrypted backup</button></details>${restoreTools()}</section>`;
 }
 function paid() { return `<section class="paid"><div><p class="eyebrow">One-time unlock</p><h2>Keep the whole notebook</h2><p>For $12, add a personal cover note to printed briefs and support ongoing maintenance. Your log, exports, and safety information remain free.</p></div><div><a class="button" href="${BILLING_BASE}/${PRODUCT_SLUG}/checkout">Buy the $12 unlock</a><label class="license">Have a license? <input id="license-token" type="text" autocomplete="off" placeholder="Paste license token" /><button class="secondary" data-action="license">Verify license</button></label><p id="license-status" class="fine" aria-live="polite">${escapeHtml(licenseMessage)}</p></div></section>`; }
@@ -90,8 +98,9 @@ async function render(moveFocus = false) {
     const content = route() === '/' ? landing() : route() === '/log' || route() === '/demo' ? appPage() : route() === '/privacy' || route() === '/terms' ? legal(route().slice(1) as 'privacy' | 'terms') : notFound();
     app.innerHTML = shell(content); bind();
     if (moveFocus) { document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true }); announce(`Opened ${document.title}.`); }
-    const storedLicense = localStorage.getItem(LICENSE_KEY);
-    if (storedLicense && (!licenseVerdict().checked || Date.now() - Number(licenseVerdict().checked) > 86_400_000)) void verifyLicense(storedLicense, false);
+    const currentScope = demo;
+    const storedLicense = localStorage.getItem(licenseKey(currentScope));
+    if (storedLicense && (!licenseVerdict(currentScope).checked || Date.now() - Number(licenseVerdict(currentScope).checked) > 86_400_000)) void verifyLicense(storedLicense, false, currentScope);
   } catch (error) { recovery(error); }
 }
 function selected(kind: keyof typeof tags) { return [...document.querySelectorAll<HTMLButtonElement>(`[data-tag="${kind}"][aria-pressed="true"]`)].map(button => button.dataset.value!); }
@@ -133,7 +142,7 @@ function printBrief() {
   const from = document.querySelector<HTMLInputElement>('#brief-from')?.value || '0000-01-01'; const to = document.querySelector<HTMLInputElement>('#brief-to')?.value || today(); const list = sorted().filter(entry => entry.date >= from && entry.date <= to);
   if (!list.length) { announce('No saved notes fall in that date range. Choose another range.'); return; }
   const rows = list.map(entry => `<section><h2>${dateLabel(entry.date)} · Severity ${entry.severity}/4</h2><p><b>Symptoms:</b> ${escapeHtml(entry.symptoms.join(', ') || '—')}</p><p><b>Possible triggers:</b> ${escapeHtml(entry.triggers.join(', ') || '—')}</p><p><b>Medicine changes:</b> ${escapeHtml(entry.medications.join(', ') || '—')}</p>${entry.note ? `<p>${escapeHtml(entry.note)}</p>` : ''}</section>`).join('');
-  const coverNote = premium() ? localStorage.getItem(COVER_NOTE_KEY)?.trim() : '';
+  const coverNote = premium() ? localStorage.getItem(coverNoteKey())?.trim() : '';
   const cover = coverNote ? `<h2>Personal cover note</h2><p>${escapeHtml(coverNote)}</p>` : '';
   // Chromium returns null for an about:blank popup opened with noopener, so it
   // produced a blank printable tab even though the popup was allowed.
@@ -141,35 +150,38 @@ function printBrief() {
   if (!win) { announce('Your browser blocked the print window. Allow pop-ups and try again.'); return; }
   win.document.write(`<!doctype html><html lang="en"><head><title>Visit brief</title><style>body{font:16px Arial,sans-serif;color:#17222e;max-width:720px;margin:40px auto;padding:0 24px}h1{font:32px Georgia,serif}h2{font-size:18px;border-top:1px solid #87929d;padding-top:14px;margin-top:22px}p{line-height:1.45}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Print this brief</button><h1>Care Visit Brief</h1><p>Record from ${from === '0000-01-01' ? 'the beginning' : dateLabel(from)} to ${to === today() ? 'today' : dateLabel(to)}. This is a personal record, not medical advice.</p>${cover}${rows}</body></html>`); win.document.close();
 }
-async function checkLicense(value: string) {
+async function checkLicense(value: string, isDemo: boolean, currentDemoSession: number) {
   licenseMessage = 'Checking license…';
   try {
     const response = await fetch(`${BILLING_BASE}/${PRODUCT_SLUG}/verify?license=${encodeURIComponent(value)}`);
     if (!response.ok) throw new Error('License verification was unavailable.');
     const result = await response.json() as { valid?: boolean; reason?: string; expires_at?: string | null };
     if (typeof result.valid !== 'boolean') throw new Error('License verification returned an invalid response.');
-    localStorage.setItem(VERDICT_KEY, JSON.stringify({ ...result, checked: Date.now() }));
+    if (isDemo !== demo || (isDemo && currentDemoSession !== demoSession)) return;
+    localStorage.setItem(verdictKey(isDemo), JSON.stringify({ ...result, checked: Date.now() }));
     licenseMessage = result.valid ? 'License active.' : 'License is no longer active. You can buy a new unlock.';
   } catch {
-    const prior = licenseVerdict();
-    localStorage.setItem(VERDICT_KEY, JSON.stringify({ ...prior, checked: Date.now() }));
+    if (isDemo !== demo || (isDemo && currentDemoSession !== demoSession)) return;
+    const prior = licenseVerdict(isDemo);
+    localStorage.setItem(verdictKey(isDemo), JSON.stringify({ ...prior, checked: Date.now() }));
     licenseMessage = prior.valid ? 'Could not check the license now. Your saved unlock stays available until it can be checked.' : 'Could not check the license now. Try again when you are online.';
   }
   await render();
 }
-async function verifyLicense(token?: string, announceResult = true) {
-  const value = token || document.querySelector<HTMLInputElement>('#license-token')?.value.trim() || localStorage.getItem(LICENSE_KEY);
+async function verifyLicense(token?: string, announceResult = true, isDemo = demo) {
+  const value = token || document.querySelector<HTMLInputElement>('#license-token')?.value.trim() || localStorage.getItem(licenseKey(isDemo));
   if (!value) { if (announceResult) announce('Paste a license token first.'); return; }
-  localStorage.setItem(LICENSE_KEY, value);
-  if (!licenseVerification || licenseVerification.token !== value) {
-    const promise = checkLicense(value);
-    licenseVerification = { token: value, promise };
+  localStorage.setItem(licenseKey(isDemo), value);
+  const currentDemoSession = demoSession;
+  if (!licenseVerification || licenseVerification.token !== value || licenseVerification.isDemo !== isDemo || licenseVerification.demoSession !== currentDemoSession) {
+    const promise = checkLicense(value, isDemo, currentDemoSession);
+    licenseVerification = { token: value, isDemo, demoSession: currentDemoSession, promise };
     void promise.finally(() => {
       if (licenseVerification?.promise === promise) licenseVerification = null;
     });
   }
   await licenseVerification.promise;
-  if (announceResult) announce(licenseMessage);
+  if (announceResult && isDemo === demo) announce(licenseMessage);
 }
 async function importFile(file: File, recovery = false) {
   try {
@@ -206,7 +218,7 @@ function bind() {
     const action = button.dataset.action;
     if (action === 'csv') csv(); if (action === 'json') json(); if (action === 'encrypted') void encrypted(); if (action === 'print') printBrief(); if (action === 'delete-entry') void removeEntry(button.dataset.id!); if (action === 'undo-removal') void undoRemovals();
     if (action === 'reset-demo') void (async () => { await clearEntries(true); await ensureDemo(); notifyChange(true); announce('Demo reset.'); await render(); })();
-    if (action === 'start-real') void (async () => { await clearEntries(true); notifyChange(true); navigate('/log'); })();
+    if (action === 'start-real') void (async () => { demoSession += 1; clearDemoLocalState(); await clearEntries(true); notifyChange(true); navigate('/log'); })();
     if (action === 'license') void verifyLicense();
     if (action === 'export-corrupt') download('care-visit-brief-recovery-copy.json', JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), entries: recoveryRaw }, null, 2));
     if (action === 'clear-corrupt' && confirm('Remove the unreadable local record? Download a recovery copy first if you may need it.')) void (async () => { await clearEntries(demo); recoveryRaw = null; notifyChange(); announce('Unreadable record removed. You can start a new note.'); await render(true); })();
@@ -214,7 +226,7 @@ function bind() {
   }));
   document.querySelector<HTMLInputElement>('#import-file')?.addEventListener('change', event => { const file = (event.target as HTMLInputElement).files?.[0]; if (file) void importFile(file); });
   document.querySelector<HTMLInputElement>('#recovery-import-file')?.addEventListener('change', event => { const file = (event.target as HTMLInputElement).files?.[0]; if (file) void importFile(file, true); });
-  document.querySelector<HTMLTextAreaElement>('#cover-note')?.addEventListener('input', event => localStorage.setItem(COVER_NOTE_KEY, (event.currentTarget as HTMLTextAreaElement).value));
+  document.querySelector<HTMLTextAreaElement>('#cover-note')?.addEventListener('input', event => localStorage.setItem(coverNoteKey(), (event.currentTarget as HTMLTextAreaElement).value));
   const returnedLicense = new URLSearchParams(location.search).get('license');
   if (returnedLicense) {
     history.replaceState({}, '', `${location.pathname}${location.hash}`);

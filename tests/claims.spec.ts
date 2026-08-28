@@ -125,6 +125,11 @@ test('@claim:json-backup exports a versioned record with every sample entry', as
 
 test('@claim:paid-unlock restores a verified purchase and includes its cover note in a printed brief', async ({ page }) => {
   let verificationRequests = 0;
+  await page.addInitScript(() => {
+    localStorage.setItem('sb_license:care-visit-brief', 'real-license');
+    localStorage.setItem('sb_license_verdict:care-visit-brief', JSON.stringify({ valid: false, checked: Date.now() }));
+    localStorage.setItem('care-visit-brief:cover-note', 'Keep this real cover note.');
+  });
   await page.route('https://api.sociobot.in/api/v1/products/care-visit-brief/verify?license=demo-license', async route => {
     verificationRequests += 1;
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: true, reason: 'ok', expires_at: null }) });
@@ -132,8 +137,23 @@ test('@claim:paid-unlock restores a verified purchase and includes its cover not
   await page.goto('/demo?license=demo-license');
   await expect(page).toHaveURL(/\/demo$/);
   await expect(page.locator('.live')).toHaveText('License active.');
-  expect(await page.evaluate(() => localStorage.getItem('sb_license:care-visit-brief'))).toBe('demo-license');
+  expect(await page.evaluate(() => ({
+    realLicense: localStorage.getItem('sb_license:care-visit-brief'),
+    realVerdict: localStorage.getItem('sb_license_verdict:care-visit-brief'),
+    realCover: localStorage.getItem('care-visit-brief:cover-note'),
+    demoLicense: localStorage.getItem('demo:sb_license:care-visit-brief'),
+    demoVerdict: localStorage.getItem('demo:sb_license_verdict:care-visit-brief'),
+    demoCover: localStorage.getItem('demo:care-visit-brief:cover-note')
+  }))).toMatchObject({
+    realLicense: 'real-license',
+    realVerdict: expect.stringContaining('"valid":false'),
+    realCover: 'Keep this real cover note.',
+    demoLicense: 'demo-license',
+    demoVerdict: expect.stringContaining('"valid":true'),
+    demoCover: null
+  });
   await expect(page.getByLabel(/Personal cover note/)).toBeVisible();
+  await expect(page.getByLabel(/Personal cover note/)).toHaveValue('');
   await page.getByLabel('What changed? optional').fill('A sample note for the brief.');
   await page.getByRole('button', { name: 'Save today’s note' }).click();
   await expect(page.getByText('A sample note for the brief.')).toBeVisible();
@@ -161,4 +181,36 @@ test('@claim:paid-unlock restores a verified purchase and includes its cover not
   const brief = await popup;
   await expect(brief.getByText('Ask about the evening flare.')).toBeVisible();
   await brief.close();
+  await page.getByRole('button', { name: 'Start for real' }).click();
+  await expect(page).toHaveURL(/\/log$/);
+  await expect(page.getByLabel(/Personal cover note/)).toHaveCount(0);
+  await expect(page.getByText('Ask about the evening flare.')).toHaveCount(0);
+  expect(await page.evaluate(() => ({
+    realLicense: localStorage.getItem('sb_license:care-visit-brief'),
+    realVerdict: localStorage.getItem('sb_license_verdict:care-visit-brief'),
+    realCover: localStorage.getItem('care-visit-brief:cover-note'),
+    demoLicense: localStorage.getItem('demo:sb_license:care-visit-brief'),
+    demoVerdict: localStorage.getItem('demo:sb_license_verdict:care-visit-brief'),
+    demoCover: localStorage.getItem('demo:care-visit-brief:cover-note')
+  }))).toEqual({
+    realLicense: 'real-license',
+    realVerdict: expect.stringContaining('"valid":false'),
+    realCover: 'Keep this real cover note.',
+    demoLicense: null,
+    demoVerdict: null,
+    demoCover: null
+  });
+});
+
+test('a late demo license response cannot recreate discarded demo state', async ({ page }) => {
+  let fulfill: ((response: { contentType: string; body: string }) => Promise<void>) | undefined;
+  await page.route('https://api.sociobot.in/api/v1/products/care-visit-brief/verify?license=slow-demo-license', route => new Promise<void>(resolve => {
+    fulfill = async response => { await route.fulfill(response); resolve(); };
+  }));
+  await page.goto('/demo?license=slow-demo-license');
+  await expect.poll(() => fulfill).toBeDefined();
+  await page.getByRole('button', { name: 'Start for real' }).click();
+  await expect(page).toHaveURL(/\/log$/);
+  await fulfill!({ contentType: 'application/json', body: JSON.stringify({ valid: true, reason: 'ok', expires_at: null }) });
+  await expect.poll(() => page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('demo:')))).toEqual([]);
 });
