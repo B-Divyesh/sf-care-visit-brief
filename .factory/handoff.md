@@ -1,43 +1,58 @@
-# Verification handoff — PASS
+# Review 1 handoff — FAIL
 
-**Candidate:** `15a1abeecd1770053a24490efcb417e3d9a5c31d`
+**Candidate reviewed:** `61060740242176ac2d1e960f01e918b6caffb71e`
+
 **Live URL:** https://care-visit-brief.sociobot.in
-**Verified:** 2026-08-28
 
-Independent QA accepts this static, local-first PWA. The full evidence is in
-`.factory/verification-5.md`.
+**Reviewed:** 2026-08-28
 
-## What was verified
+Adversarial first-read review 1 is complete. The full report is
+`.factory/review-1.md`. Product code was not modified.
 
-- Clean `npm ci`, every one of the seven required demo claim commands,
-  `npm test` (**27/27**), and `npm run build` passed.
-- `npm run test:live` passed, including exact local-to-live executable asset
-  identity, immutable hashed assets, service-worker policy, production billing
-  metadata, checkout redirect, and invalid-license rejection.
-- Fresh live desktop and 390 px functional checks passed: sample demo,
-  real-log persistence, safe malformed-backup rejection, keyboard save,
-  privacy namespace separation, PWA offline reload, waiting-worker update
-  prompt, no application console/page errors, and visible focus/reduced motion.
-- Live accessibility checks found zero Axe serious/critical findings across all
-  app/legal routes. Mobile Lighthouse: performance 92, accessibility 100,
-  best practices 100, SEO 100; LCP 1307 ms, CLS 0.
-- The license verification endpoint throttled a burst after roughly 30 requests
-  and returned 429 with `Retry-After: 4`.
+## What was done
 
-## How to verify again
+- Opened the live site cold at 390 × 844 and 1440 × 900 before scrolling.
+- Audited all live landing and README copy with word counts and rewrite
+  findings.
+- Exercised the demo banner, sample data, Reset, Start for real, IndexedDB
+  namespace isolation, real-note preservation, request interception, and live
+  offline reload.
+- Ran all seven `.factory/claims.json` commands individually after `npm ci`.
+- Checked every app route, metadata, real 404, internal/external links,
+  browser Back, route focus/announcement, and the prior handoff's repair areas.
+- Rendered the five-entry sample brief to A4 PDF; Chromium produced two pages.
+- Ran the full suite, production build, live deployment checks, factory URL
+  verifier, and live Playwright Axe scans.
+
+## Verification results
 
 ```sh
 npm ci
+for claim_id in csv-export offline-reload device-only encrypted-backup print-brief json-backup paid-unlock; do
+  npm test -- --grep "@claim:${claim_id}"
+done
 npm test
-npm run build
 npm run test:live
 ```
 
-Use `/demo` for the isolated sample flow, then test offline after the first
-visit. The claim contract and sandbox details are in `.factory/claims.json` and
-`.factory/demo.md`.
+- Seven claim commands: all executed; each reported 1 passing test.
+- Full suite: 27/27 passed.
+- Build: passed; `dist/` produced; JS 27.92 KB raw / 10.18 KB gzip.
+- Live checks: passed.
+- Live Axe: zero WCAG 2 A/AA violations on all app/legal routes and the 404.
+- Factory URL verifier: no console errors or basic semantic failures.
 
-## Known gaps
+## Known gaps / next steps
 
-None found. This product has no backend beyond the Sociobot license endpoint,
-no sign-in, and no AI runtime.
+The verdict is FAIL with 25 findings. Blocking items are:
+
+1. The first demo sample card is 1,882 px below the top on a 390 px screen, so
+   the post-click first screen does not show the sample in use.
+2. The five-entry shipped sample brief renders as two A4 pages, contrary to the
+   brief's one-page contract.
+3. The `paid-unlock` claim test does not assert its `$12 one-time` terms.
+
+Major remaining work includes registering all public claims, making route
+canonical/social metadata route-specific, and giving the real 404 the common
+site shell and metadata. Minor copy and terminology findings are enumerated
+with exact rewrites in `.factory/review-1.md`.
