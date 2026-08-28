@@ -83,6 +83,10 @@ The static `dist/` artifact was deployed successfully on 2026-08-28 using
   `Cache-Control: public, max-age=31536000, immutable`.
 - The live `verify-url.sh` pass found title, language, one h1, main landmark,
   image alt text, desktop/390 px screenshots, and no console or page errors.
+- A fresh live 390 px browser context saved an entry, uploaded the verifier's
+  exact malformed file, and confirmed both the recovery message and preserved
+  entry. The same context then cached `/demo`, went offline, reopened `/demo`,
+  and displayed the demo banner and sample data with no page errors.
 
 No product gaps are known.
 
