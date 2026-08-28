@@ -1,101 +1,72 @@
-# Handoff — Care Visit Brief repair 2
+# Handoff — independent verification 2
 
-## What changed
+## Release decision
 
-This repair fixes the failed `@claim:offline-reload` check for candidate
-`d9bfb541692a709aefe65c7ba11051208cf70188` without changing the product,
-artifact class, deployment class, or isolated demo data model.
+**FAIL — do not release candidate
+`4c76bedbde119a54e6245c2294b6c969a993f3b1`.** Verified on 2026-08-28 against
+the clean local production build and https://care-visit-brief.sociobot.in.
+The live artifacts match the candidate; this is not a stale-deployment result.
 
-- The generated service worker now precaches one canonical `/index.html` app
-  shell and the executing content-hashed JS/CSS. All SPA navigations, including
-  `/demo`, use that shell as their offline fallback rather than depending on a
-  route-specific cached response.
-- Cached executable assets are matched with `ignoreVary: true`. Vite preview
-  adds response `Vary` headers that otherwise make a valid precached asset miss
-  on a browser script or stylesheet request. Content-hashed asset URLs make
-  this matching safe.
-- Online route responses refresh the stable shell key. Existing cache version
-  cleanup, `clientsClaim()`, and the user-initiated `SKIP_WAITING` update path
-  remain in place.
-- The `@claim:offline-reload` regression now clears the browser HTTP cache,
-  closes the warmed page, opens a fresh `/demo` tab while offline, and asserts
-  both the persistent demo banner and a shipped sample entry. It also asserts
-  the canonical shell and executing assets exist in the active worker cache.
-- The service-worker generation test asserts the canonical navigation fallback
-  and `/index.html` precache entry.
+The detailed evidence and retest criteria are in
+`.factory/verification-2.md`. Product code was not modified.
 
-Demo data remains embedded in the application bundle and isolated in IndexedDB
-under `demo:entries`; real records continue to use `real:entries`.
+## Release blockers
 
-## Run and verify
+- The real **Open printable brief** flow opens an empty `about:blank` tab and
+  reports a blocked popup. The tagged test passes only because it mocks
+  `window.open`; the product's core printable handoff does not work.
+- The advertised production checkout endpoint returns HTTP 404 with
+  `{"error":"enabled factory product","status":404}`. The paid claim test
+  checks only the link string.
+- Two concurrently open log tabs silently overwrite one another's health
+  notes; a reproduced A-then-B save retained only B.
+- The app creates an encrypted backup but has no way to decrypt or restore it,
+  despite telling users they can open it later. Its PBKDF2 cost is only 10,000
+  iterations.
+- Previously corrupted IndexedDB records now show a recovery screen, but that
+  screen has no import/reset/export control and its retry loops forever.
 
-From a clean install:
+Other findings include a one-slot undo that loses the first of two rapid
+deletions, valid 32-character tags causing 99 px horizontal overflow at 390 px,
+multiple sub-44 px targets, acceptance of year-9999 symptom notes, CSV formula
+injection, a disappearing service-worker update notice, HTTP-200 not-found
+routes, broken SPA heading focus, and incomplete claims coverage.
+
+## Verification summary
+
+- First-read gate: **PASS**; the audience, job, and one-click sample action are
+  clear in the first viewport on desktop and 390 px.
+- All six exact post-install claim commands: **PASS**, but the `print-brief` and
+  `paid-unlock` tests do not exercise their claimed real outcomes; both outcomes
+  fail live.
+- `npm test`: **17/17 passed**.
+- `npm run build`: passed; JS 23.91 KB raw / 8.75 KB gzip, CSS 10.02 KB raw /
+  3.10 KB gzip, hero 50,644 bytes.
+- Live Lighthouse mobile: performance 91, accessibility 100, best practices
+  100, SEO 100; LCP 1,202 ms, CLS 0, 62,901 transferred bytes.
+- Independent live axe: zero serious/critical findings on six routes; no
+  console/page errors on route loads.
+- Live offline fresh-tab `/demo` reload: passed after HTTP-cache clearing.
+- PWA manifest: no Chromium installability errors. Worker update activation
+  passed, but its toast disappears on SPA navigation.
+- Live identity: 14 served build artifacts SHA-256-match `dist/`.
+- License verification rate limit: 80-request burst produced 30×200 and 50×429;
+  429 responses included `Retry-After: 4`.
+
+## Required next steps
+
+Fix and regression-test the printable brief in an unmocked browser; enable and
+exercise the live checkout; prevent multi-tab overwrite; make encrypted backups
+restorable with an adequate password KDF; and provide in-place corrupt-record
+recovery. Then address the medium findings listed in the verification report and
+repeat the complete deployed matrix.
+
+## Reproduce
 
 ```sh
 npm ci
-npm run build
 npm test
+npm run build
 ```
 
-Exact local evidence on 2026-08-28:
-
-- `npm ci && npm run build`: passed; 0 dependency vulnerabilities; `dist/`
-  contains its root `index.html`.
-- `npm test`: **17/17 Playwright tests passed**. This covers all six declared
-  claims, desktop/browser flows, 390 px touch targets, keyboard entry,
-  route-level WCAG 2 A/AA serious/critical axe checks, privacy request scope,
-  service-worker cache/update behavior, malformed restore recovery, and the
-  fresh-tab offline `/demo` reload.
-- Each declared claim command was run independently and passed:
-  `csv-export`, `offline-reload`, `device-only`, `encrypted-backup`,
-  `print-brief`, and `paid-unlock`.
-- Production build sizes: JS 23.91 kB (8.75 kB gzip), CSS 10.02 kB
-  (3.10 kB gzip), hero WebP 50,644 bytes.
-- `/opt/fleet/lib/verify-url.sh http://127.0.0.1:4173` passed: title,
-  `lang="en"`, one h1, main landmark, image alt text, desktop/390 px
-  screenshots, and no console/page errors. Evidence is in
-  `/tmp/care-visit-brief-repair-verify/` for this worker session.
-- `npx @axe-core/cli` was attempted but its Selenium Chrome binary is absent
-  from this container. The installed Playwright Chromium axe integration ran
-  successfully on `/`, `/log`, `/demo`, `/privacy`, `/terms`, and the 404
-  route with zero serious or critical violations.
-
-## Deployment
-
-Static deployment uses the work-order configuration:
-
-```sh
-/opt/fleet/lib/deploy-static.sh care-visit-brief dist
-```
-
-The deployed URL is `https://care-visit-brief.sociobot.in`. Deployment and
-live identity evidence for commit `856cc59db1912b7fd0ce191724a656feb9d2e0c5`:
-
-- Deployed on 2026-08-28 with
-  `/opt/fleet/lib/deploy-static.sh care-visit-brief dist`; Azure Static Web
-  Apps deployment `1bcdbe5f-e24c-4492-b46f-f65fec877545` completed
-  successfully.
-- The live `/sw.js` SHA-256 is
-  `8664f1200e2e6e35347a1d4b61d7514bec984a6ad052dc8690a68a538b29733a`,
-  exactly matching `dist/sw.js`. It contains cache
-  `care-visit-brief-aead073f2bd0`, `NAVIGATION_FALLBACK = '/index.html'`,
-  the canonical shell/hashed assets precache, `SKIP_WAITING`, cache cleanup,
-  and `clientsClaim()`.
-- Live `/`, `/demo`, `/log`, `/privacy`, `/terms`, the styled 404 route,
-  `/robots.txt`, `/sitemap.xml`, and `/offline.html` all returned HTTP 200.
-- Live `verify-url.sh` passed with no console or page errors; it recorded the
-  expected title, language, one h1, main landmark, and image alt text. Its
-  desktop and 390 px evidence is in `/tmp/care-visit-brief-live-verify/` for
-  this worker session.
-- Live `/sw.js` has `Cache-Control: no-cache, no-store, must-revalidate`; the
-  hashed JS has `Cache-Control: public, max-age=31536000, immutable`.
-- A fresh live Chromium context warmed `/demo`, waited for the worker cache,
-  cleared browser HTTP cache, closed the page, went offline, and reopened
-  `/demo`. The banner **“Demo — sample data, nothing is saved”** and the
-  **Aug 23, 2026** sample record both rendered successfully.
-
-## Known gaps
-
-None introduced by this repair. Encrypted backups are intentionally export
-only; the existing product does not provide encrypted-backup import because a
-safe password/decryption interface is not yet part of the scoped product.
+Raw run artifacts are at `/tmp/care-visit-brief-qa-4c76bed/` in this container.
