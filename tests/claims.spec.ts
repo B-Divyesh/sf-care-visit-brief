@@ -230,14 +230,22 @@ test('@claim:demo-isolation resets and discards demo data without changing the r
   await page.getByRole('button', { name: 'Reset demo' }).click();
   await expect(page.locator('.entry-card')).toHaveCount(5);
   await expect(page.getByText('DEMO-ONLY NOTE')).toHaveCount(0);
+  // Reset replaces only the sample namespace. Check the real record before
+  // leaving demo mode, so a later render cannot hide an accidental mutation.
+  expect(await page.evaluate(async () => {
+    const request = indexedDB.open('care-visit-brief', 1);
+    const db = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    const stored = db.transaction('entries').objectStore('entries').get('real:entries');
+    return await new Promise<string[]>((resolve, reject) => { stored.onsuccess = () => resolve((stored.result as Array<{ note: string }>).map(entry => entry.note)); stored.onerror = () => reject(stored.error); });
+  })).toEqual(['REAL NOTE MUST REMAIN']);
   await page.getByRole('button', { name: 'Start my private timeline' }).click();
   await expect(page).toHaveURL(/\/log$/);
   await expect(page.getByText('REAL NOTE MUST REMAIN')).toBeVisible();
   expect(await page.evaluate(async () => {
     const request = indexedDB.open('care-visit-brief', 1); const db = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     const tx = db.transaction('entries'); const stored = tx.objectStore('entries').get('demo:entries');
-    return await new Promise<number>((resolve, reject) => { stored.onsuccess = () => resolve(Array.isArray(stored.result) ? stored.result.length : -1); stored.onerror = () => reject(stored.error); });
-  })).toBe(0);
+    return await new Promise<unknown>((resolve, reject) => { stored.onsuccess = () => resolve(stored.result); stored.onerror = () => reject(stored.error); });
+  })).toBeUndefined();
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('demo:')))).toEqual([]);
 });
 

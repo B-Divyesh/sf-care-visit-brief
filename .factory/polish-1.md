@@ -45,3 +45,9 @@ Every finding in `.factory/review-1.md` is mapped below. Local screenshots are i
 - Cold live route/Axe audit: `.factory/polish-1/live-a11y.json`; five 200 routes, one true 404, correct titles/canonicals, and zero serious/critical violations.
 - Cold live interaction audit: `.factory/polish-1/live-flow.json`; six same-origin requests, empty demo keys after exit, real note preserved, reset restored five notes, Back focused the `h1`, and offline sample reload passed.
 - Live verifier: `.factory/polish-1/live-verify/verify.json`; no console errors or semantic failures.
+
+## Controller isolation addendum
+
+| Finding | Change made | Evidence |
+|---|---|---|
+| Controller evidence: demo reset/exit must preserve `REAL NOTE MUST REMAIN` and remove only demo data | `clearEntries(true)` now deletes the `demo:entries` record under the demo-only write lock. Reset recreates the five shipped notes only in that namespace; exit removes the record and `demo:` local state. `real:entries` is never opened by either cleanup action. | `@claim:demo-isolation` saves the exact real note, proves it remains after **Reset demo**, exits, proves it remains in the visible real timeline, and asserts `demo:entries === undefined`. The full 41-test single-worker suite passed locally. |

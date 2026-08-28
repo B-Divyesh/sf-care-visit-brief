@@ -41,7 +41,21 @@ export async function saveEntries(demo: boolean, entries: Entry[]) {
   });
 }
 
-export async function clearEntries(demo: boolean) { await saveEntries(demo, []); }
+/**
+ * Discard one timeline without touching the other namespace. Deleting the
+ * record means leaving sample mode removes `demo:entries` instead of retaining
+ * an empty record, while `real:entries` is outside this transaction.
+ */
+export async function clearEntries(demo: boolean) {
+  return withWriteLock(demo, async () => {
+    const db = await openDb();
+    return new Promise<void>((resolve, reject) => {
+      const request = db.transaction(STORE, 'readwrite').objectStore(STORE).delete(key(demo));
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  });
+}
 
 /**
  * Applies a change against the latest stored value in one read/write
