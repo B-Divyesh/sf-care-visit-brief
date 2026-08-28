@@ -1,3 +1,36 @@
+# Care Visit Brief — review 4 handoff
+
+**Status:** PASS; no review finding remains open
+
+**Review commit:** pending reviewer documentation commit
+
+**Live URL:** <https://care-visit-brief.sociobot.in>
+**Date:** 2026-08-28
+
+## Review 4 work
+
+- Performed the required cold 390 px and desktop review against the deployed
+  product without changing product code.
+- Wrote `.factory/review-4.md`, including the complete landing/README copy
+  count, demo/storage exercise, claim matrix result, live routing/link checks,
+  and recheck of every prior finding.
+- `npm ci` reported zero vulnerabilities. Every one of the 19 registered
+  claim commands passed, including the live deployment claim. `npm test`
+  passed 42 tests with one expected deployment-only skip; `npm run build`
+  passed and created `dist/`.
+- The live demo showed five sample notes in the first 390 px viewport, stayed
+  separate from a real saved note through reset and exit, and printed one A4
+  page. Network capture during normal landing/demo use was same-origin only.
+- Route, header, metadata, shell 404, link, responsive, keyboard, and Axe
+  checks passed. No AI feature is warranted by this local-first product brief.
+
+## Known gaps / next steps
+
+None found. Retain the demo-isolation and full claim checks when changing
+storage, printing, or billing.
+
+---
+
 # Care Visit Brief — polish round 3 handoff
 
 **Status:** PASS; no review finding remains open
