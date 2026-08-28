@@ -69,7 +69,28 @@ Static deployment uses the work-order configuration:
 ```
 
 The deployed URL is `https://care-visit-brief.sociobot.in`. Deployment and
-live identity evidence is recorded below after the final production upload.
+live identity evidence for commit `856cc59db1912b7fd0ce191724a656feb9d2e0c5`:
+
+- Deployed on 2026-08-28 with
+  `/opt/fleet/lib/deploy-static.sh care-visit-brief dist`.
+- The live `/sw.js` SHA-256 is
+  `8664f1200e2e6e35347a1d4b61d7514bec984a6ad052dc8690a68a538b29733a`,
+  exactly matching `dist/sw.js`. It contains cache
+  `care-visit-brief-aead073f2bd0`, `NAVIGATION_FALLBACK = '/index.html'`,
+  the canonical shell/hashed assets precache, `SKIP_WAITING`, cache cleanup,
+  and `clientsClaim()`.
+- Live `/`, `/demo`, `/log`, `/privacy`, `/terms`, the styled 404 route,
+  `/robots.txt`, `/sitemap.xml`, and `/offline.html` all returned HTTP 200.
+- Live `verify-url.sh` passed with no console or page errors; it recorded the
+  expected title, language, one h1, main landmark, and image alt text. Its
+  desktop and 390 px evidence is in `/tmp/care-visit-brief-live-verify/` for
+  this worker session.
+- Live `/sw.js` has `Cache-Control: no-cache, no-store, must-revalidate`; the
+  hashed JS has `Cache-Control: public, max-age=31536000, immutable`.
+- A fresh live Chromium context warmed `/demo`, waited for the worker cache,
+  cleared browser HTTP cache, closed the page, went offline, and reopened
+  `/demo`. The banner **“Demo — sample data, nothing is saved”** and the
+  **Aug 23, 2026** sample record both rendered successfully.
 
 ## Known gaps
 
