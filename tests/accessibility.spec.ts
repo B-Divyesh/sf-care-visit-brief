@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 for (const path of ['/', '/log', '/demo', '/privacy', '/terms', '/missing-page']) {
   test(`accessible shell ${path}`, async ({ page }) => {
@@ -191,4 +192,12 @@ test('generated service worker versions and precaches executing assets', async (
   expect(worker.paths).toContain('/index.html');
   expect(worker.paths.some(path => /\/assets\/[^/]+\.js$/.test(path))).toBeTruthy();
   expect(worker.paths.some(path => /\/assets\/[^/]+\.css$/.test(path))).toBeTruthy();
+});
+
+test('static deployment rewrites only real SPA routes and serves a 404 page for unknown URLs', () => {
+  const config = JSON.parse(readFileSync('public/staticwebapp.config.json', 'utf8')) as { navigationFallback?: unknown; routes: Array<{ route: string; rewrite?: string }>; responseOverrides: Record<string, { rewrite: string }> };
+  expect(config.navigationFallback).toBeUndefined();
+  for (const route of ['/log', '/demo', '/privacy', '/terms']) expect(config.routes).toContainEqual({ route, rewrite: '/index.html' });
+  expect(config.responseOverrides['404']).toEqual({ rewrite: '/404.html' });
+  expect(readFileSync('public/404.html', 'utf8')).toContain('<h1>This page is not in the notebook</h1>');
 });
