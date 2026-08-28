@@ -72,7 +72,9 @@ The deployed URL is `https://care-visit-brief.sociobot.in`. Deployment and
 live identity evidence for commit `856cc59db1912b7fd0ce191724a656feb9d2e0c5`:
 
 - Deployed on 2026-08-28 with
-  `/opt/fleet/lib/deploy-static.sh care-visit-brief dist`.
+  `/opt/fleet/lib/deploy-static.sh care-visit-brief dist`; Azure Static Web
+  Apps deployment `1bcdbe5f-e24c-4492-b46f-f65fec877545` completed
+  successfully.
 - The live `/sw.js` SHA-256 is
   `8664f1200e2e6e35347a1d4b61d7514bec984a6ad052dc8690a68a538b29733a`,
   exactly matching `dist/sw.js`. It contains cache
