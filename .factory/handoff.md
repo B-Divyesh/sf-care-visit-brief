@@ -69,12 +69,22 @@ npm run build
   the repository's Playwright axe integration passed on `/`, `/log`, `/demo`,
   `/privacy`, `/terms`, and the 404 route instead.
 
-### Deployment follow-up
+### Deployment evidence
 
-Deploy the static `dist/` output. After the host publishes this commit, retest
-the malformed restore flow and verify `/assets/*` sends the configured
-immutable cache header while `/sw.js` stays revalidated. No product gaps are
-known.
+The static `dist/` artifact was deployed successfully on 2026-08-28 using
+`/opt/fleet/lib/deploy-static.sh care-visit-brief dist` (Azure deployment
+`f7106a05-709a-44ca-928a-b351d10b698d`). The production custom domain returned
+200 after deployment.
+
+- Live `/sw.js` contains cache `care-visit-brief-bf79fb08e324`, the generated
+  hashed JS/CSS precache, `SKIP_WAITING`, cache cleanup, and `clientsClaim()`.
+- Live `/sw.js` sends `Cache-Control: no-cache, no-store, must-revalidate`.
+- Live `/assets/index-_P8_lROj.js` sends
+  `Cache-Control: public, max-age=31536000, immutable`.
+- The live `verify-url.sh` pass found title, language, one h1, main landmark,
+  image alt text, desktop/390 px screenshots, and no console or page errors.
+
+No product gaps are known.
 
 ## What shipped
 
