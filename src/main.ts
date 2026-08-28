@@ -12,6 +12,7 @@ const BILLING_BASE = 'https://api.sociobot.in/api/v1/products';
 const LICENSE_KEY = `sb_license:${PRODUCT_SLUG}`;
 const VERDICT_KEY = `sb_license_verdict:${PRODUCT_SLUG}`;
 const COVER_NOTE_KEY = 'care-visit-brief:cover-note';
+const CHANGE_KEY = 'care-visit-brief:change';
 const today = () => new Date().toISOString().slice(0, 10);
 const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]!));
 const b64 = (value: Uint8Array) => btoa(String.fromCharCode(...value));
@@ -31,6 +32,11 @@ let reloadForUpdate = false;
 let licenseMessage = '';
 let demoSession = 0;
 let licenseVerification: { token: string; isDemo: boolean; demoSession: number; promise: Promise<void> } | null = null;
+// IndexedDB reads can resolve in a different order from cross-tab broadcasts.
+// Only the newest render may paint, otherwise an older snapshot can hide a
+// note that another tab just saved.
+let renderGeneration = 0;
+let scheduledRender: number | undefined;
 
 function route() { return location.pathname.replace(/\/$/, '') || '/'; }
 function queryDemo() { return route() === '/' && new URLSearchParams(location.search).get('demo') === '1'; }
@@ -75,7 +81,22 @@ function download(name: string, body: BlobPart, type = 'application/json') {
   const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([body], { type })); link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 400);
 }
 function announce(message: string) { statusMessage = message; const live = document.querySelector('.live'); if (live) live.textContent = message; }
-function notifyChange(isDemo = demo) { changeChannel?.postMessage(namespace(isDemo)); }
+function notifyChange(isDemo = demo) {
+  const scope = namespace(isDemo);
+  changeChannel?.postMessage(scope);
+  // BroadcastChannel is the fast path. The storage event is a browser-native
+  // fallback for tabs which did not receive that transient message while both
+  // were saving at once. It carries no health data.
+  localStorage.setItem(CHANGE_KEY, JSON.stringify({ scope, changedAt: Date.now(), token: crypto.randomUUID() }));
+  scheduleRender();
+}
+function scheduleRender(moveFocus = false) {
+  if (scheduledRender) window.clearTimeout(scheduledRender);
+  // Let concurrent IndexedDB commits and their cross-tab notices settle into
+  // one fresh snapshot. This prevents a tab from painting an earlier read
+  // immediately after another tab has committed a note.
+  scheduledRender = window.setTimeout(() => { scheduledRender = undefined; void render(moveFocus); }, 40);
+}
 function navigate(path: string) { history.pushState({}, '', path); window.scrollTo(0, 0); void render(true); }
 
 function shell(content: string) {
@@ -115,9 +136,11 @@ function recovery(error: unknown) {
   bind(); document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
 }
 async function render(moveFocus = false) {
+  const generation = ++renderGeneration;
   try {
     demo = demoRoute(); setMetadata(); if (demo) await ensureDemo();
-    if (isAppRoute()) { const stored = await loadEntries(demo); recoveryRaw = stored; entries = normalizeEntries(stored); } else entries = [];
+    if (generation !== renderGeneration) return;
+    if (isAppRoute()) { const stored = await loadEntries(demo); if (generation !== renderGeneration) return; recoveryRaw = stored; entries = normalizeEntries(stored); } else entries = [];
     recoveryRaw = null;
     const content = viewRoute() === '/' ? landing() : viewRoute() === '/log' || viewRoute() === '/demo' ? appPage() : viewRoute() === '/privacy' || viewRoute() === '/terms' ? legal(viewRoute().slice(1) as 'privacy' | 'terms') : notFound();
     app.innerHTML = shell(content); bind();
@@ -133,7 +156,7 @@ async function addEntry(form: HTMLFormElement) {
   const fd = new FormData(form); const date = String(fd.get('date'));
   if (date > today()) { announce('Choose today or an earlier date for a daily note.'); return; }
   const entry: Entry = { id: crypto.randomUUID(), date, severity: chosenSeverity(), symptoms: selected('symptoms'), triggers: selected('triggers'), medications: selected('medications'), note: String(fd.get('note')).trim(), createdAt: new Date().toISOString() };
-  await changeEntries(current => [...current.filter(item => item.id !== entry.id), entry]); announce('Today’s note saved.'); await render();
+  await changeEntries(current => [...current.filter(item => item.id !== entry.id), entry]); announce('Today’s note saved.');
 }
 function csvCell(value: string | number) { const text = String(value); return `"${(/^\s*[=+\-@]/.test(text) ? `'${text}` : text).replaceAll('"', '""')}"`; }
 function csv() { const header = ['Date', 'Severity', 'Symptoms', 'Triggers', 'Medicine changes', 'Note']; download('care-visit-brief.csv', [header.map(csvCell).join(','), ...sorted().map(entry => [entry.date, entry.severity, entry.symptoms.join('; '), entry.triggers.join('; '), entry.medications.join('; '), entry.note].map(csvCell).join(','))].join('\n'), 'text/csv'); announce('CSV downloaded.'); }
@@ -269,7 +292,11 @@ function registerServiceWorker() {
   }).catch(() => undefined);
 }
 
-changeChannel?.addEventListener('message', event => { if (event.data === namespace()) void render(); });
+changeChannel?.addEventListener('message', event => { if (event.data === namespace()) scheduleRender(); });
+window.addEventListener('storage', event => {
+  if (event.key !== CHANGE_KEY || !event.newValue) return;
+  try { if ((JSON.parse(event.newValue) as { scope?: string }).scope === namespace()) scheduleRender(); } catch { /* Ignore a malformed notification. */ }
+});
 window.addEventListener('popstate', () => void render(true));
 if ('serviceWorker' in navigator) window.addEventListener('load', registerServiceWorker);
 void render();
