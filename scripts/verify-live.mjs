@@ -13,6 +13,9 @@ function assert(condition, message) {
 const home = await fetch(`${origin}/`);
 assert(home.status === 200, `home returned HTTP ${home.status}`);
 assert(home.headers.get('content-security-policy')?.includes("default-src 'self'"), 'home is missing its content security policy');
+assert(home.headers.get('x-content-type-options') === 'nosniff', 'home is missing X-Content-Type-Options: nosniff');
+assert(home.headers.get('referrer-policy') === 'strict-origin-when-cross-origin', 'home has the wrong Referrer-Policy');
+assert(home.headers.get('strict-transport-security') !== null, 'home is missing Strict-Transport-Security');
 const html = await home.text();
 assert(html.includes('<div id="app"></div>'), 'live home is not the built app shell');
 
@@ -67,6 +70,10 @@ try {
     assert(await page.locator('meta[property="og:url"]').getAttribute('content') === canonical, `${path} has the wrong Open Graph URL`);
     assert(await page.locator('meta[name="twitter:title"]').getAttribute('content') === title, `${path} has the wrong Twitter title`);
   }
+  await page.goto(`${origin}/`, { waitUntil: 'networkidle' });
+  assert(await page.getByRole('heading', { name: 'Choose the day’s severity' }).count() === 1, 'home has the old first-step heading');
+  assert(await page.getByRole('heading', { name: 'Leave days without notes blank' }).count() === 1, 'home has the old blank-day heading');
+  assert(await page.locator('figcaption').textContent() === 'Record only details you may want to discuss with a clinician.', 'home has the old hero caption');
   await page.goto(`${origin}/?demo=1`, { waitUntil: 'networkidle' });
   const sample = page.getByText('Worse than usual after two poor nights.').first();
   assert(await sample.isVisible(), 'demo sample note is not visible');
@@ -83,6 +90,7 @@ try {
   }
   assert(await page.getByRole('link', { name: 'Privacy' }).count() >= 1, '404 is missing Privacy link');
   assert(await page.getByRole('link', { name: 'Terms' }).count() >= 1, '404 is missing Terms link');
+  assert(await page.getByRole('heading', { name: 'We could not find this page' }).count() === 1, '404 has the old metaphorical heading');
   await context.close();
 } finally {
   await browser.close();

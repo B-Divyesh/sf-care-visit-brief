@@ -264,6 +264,26 @@ test('static deployment rewrites only real SPA routes and serves a 404 page for 
   for (const route of ['/log', '/demo', '/privacy', '/terms']) expect(config.routes).toContainEqual({ route, rewrite: '/index.html' });
   expect(config.responseOverrides['404']).toEqual({ rewrite: '/404.html' });
   const notFound = readFileSync('public/404.html', 'utf8');
-  expect(notFound).toContain('<h1>This page is not in the notebook</h1>');
+  expect(notFound).toContain('<h1>We could not find this page</h1>');
   expect(notFound.match(/class="skip-link"/g)).toHaveLength(1);
+});
+
+test('reviewed copy names each action and error in plain words', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Choose the day’s severity' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Leave days without notes blank' })).toBeVisible();
+  await expect(page.locator('figcaption')).toHaveText('Record only details you may want to discuss with a clinician.');
+
+  await page.goto('/missing-page');
+  await expect(page.getByRole('heading', { name: 'We could not find this page' })).toBeVisible();
+  await expect(page.getByText('Return to your timeline or try the sample.')).toBeVisible();
+
+  const readme = readFileSync('README.md', 'utf8');
+  expect(readme).toContain('## Use Care Visit Brief');
+  expect(readme).toContain('checks the price, security headers, page titles and URLs, the 404 page, and built-file hashes.');
+  for (const vague of ['## Use it', 'response policy', 'route metadata', 'deployed asset identity']) expect(readme).not.toContain(vague);
+
+  const catalogDescription = readFileSync('.factory/catalog-description.txt', 'utf8').trim();
+  expect(catalogDescription).toBe('Turn daily symptom notes into a printable visit brief for a clinician.');
+  expect(catalogDescription.length).toBeLessThanOrEqual(120);
 });

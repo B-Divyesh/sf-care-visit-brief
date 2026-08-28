@@ -1,1 +1,1 @@
-Turn daily symptom notes into a private visit brief for a clinician.
+Turn daily symptom notes into a printable visit brief for a clinician.

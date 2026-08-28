@@ -1,6 +1,6 @@
-# Copy audit — polish round 1
+# Copy audit — polish round 3
 
-Audited 2026-08-28. Counts treat hyphenated terms and numbers as one word. No sentence exceeds 22 words. No banned marketing word appears.
+Audited 2026-08-28 after the round-3 repair. Counts treat hyphenated terms and numbers as one word. No sentence exceeds 22 words. No banned marketing word appears.
 
 ## Landing and product copy
 
@@ -15,7 +15,7 @@ Audited 2026-08-28. Counts treat hyphenated terms and numbers as one word. No se
 | Notes stay on this device | 5 | Pass |
 | Works offline after your first visit | 6 | Pass |
 | $12 USD once; the timeline stays free | 7 | Pass |
-| Keep only the details you may need later. | 8 | Pass |
+| Record only details you may want to discuss with a clinician. | 10 | Pass |
 | Record what changed | 3 | Pass |
 | Save a severity number, optional tags, and a short note. | 10 | Pass |
 | How hard was it today? | 5 | Pass |
@@ -33,10 +33,10 @@ Audited 2026-08-28. Counts treat hyphenated terms and numbers as one word. No se
 | Open one-page visit brief | 4 | Pass |
 | Choose a password. | 3 | Pass |
 | You need it to restore this backup later. | 8 | Pass |
-| Mark the day | 3 | Pass |
+| Choose the day’s severity | 4 | Pass |
 | Choose a severity number. | 4 | Pass |
 | Add only tags that matter. | 5 | Pass |
-| Leave gaps alone | 3 | Pass |
+| Leave days without notes blank | 5 | Pass |
 | No missed-day warning appears. | 4 | Pass |
 | Blank days remain blank. | 4 | Pass |
 | Bring the visit brief | 4 | Pass |
@@ -66,9 +66,22 @@ Audited 2026-08-28. Counts treat hyphenated terms and numbers as one word. No se
 | Worse than usual after two poor nights. | 7 | Pass |
 | Add another note | 3 | Pass |
 
-## README prose
+## README and catalog prose
 
-Every README sentence was counted. The longest sentence has 18 words. The words “isolated,” “handoff,” “SPA fallback,” “immutable hashed-asset caching,” “production billing route,” “deployed asset identity,” “useful,” and “maintenance” are absent.
+Every README sentence was counted. The longest sentence has 20 words. The heading “Use Care Visit Brief” names its subject. The deployment check names the price, security headers, page titles and URLs, 404 page, and built-file hashes. The words “isolated,” “handoff,” “SPA fallback,” “response policy,” “route metadata,” “deployed asset identity,” “useful,” and “maintenance” are absent.
+
+The catalog description is “Turn daily symptom notes into a printable visit brief for a clinician.” It starts with a verb and has 70 characters.
+
+## Error and offline copy
+
+| Copy | Words | Result |
+|---|---:|---|
+| We could not find this page | 6 | Pass; names the 404 error |
+| Return to your timeline or try the sample. | 8 | Pass; gives two recovery paths |
+| Care Visit Brief is offline | 5 | Pass; names the offline state |
+| Reconnect once to load this page. | 6 | Pass |
+| Saved notes remain in this browser. | 6 | Pass |
+| Try again | 2 | Pass |
 
 ## Terminology
 
@@ -81,4 +94,4 @@ Every README sentence was counted. The longest sentence has 18 words. The words 
 | Optional paid result | cover note |
 | Portable saved file | backup |
 
-“Notebook” appears only in the wordmark’s visual theme and the notebook-specific 404. It does not name stored data.
+“Notebook” appears only in the literal image alt text and design provenance. It does not name stored data, an app route, or an error state.

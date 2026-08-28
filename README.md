@@ -6,7 +6,7 @@ A note saves a severity number, symptom tags, possible triggers, medicine change
 
 The app does not diagnose, interpret symptoms, recommend treatment, or contact a clinician.
 
-## Use it
+## Use Care Visit Brief
 
 - Open `/?demo=1` to see five sample notes without changing your real timeline.
 - Use **Reset demo** to restore the sample. Use **Start my private timeline** to discard it.
@@ -33,7 +33,7 @@ The included config serves app routes and the custom 404 page. It also caches ve
 
 The claim registry is [.factory/claims.json](.factory/claims.json). Each product claim names its exact test command and clean sandbox.
 
-After deployment, `npm run test:live` checks billing, response policy, route metadata, the 404 page, and deployed asset identity.
+After deployment, `npm run test:live` checks the price, security headers, page titles and URLs, the 404 page, and built-file hashes.
 
 ## Optional one-time purchase
 

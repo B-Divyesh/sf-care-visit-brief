@@ -131,7 +131,7 @@ test('@claim:json-backup exports a versioned record with every sample note', asy
   expect(data.entries.map((entry: { date: string }) => entry.date)).toContain('2026-08-23');
 });
 
-test('@claim:demo-first-screen shows a filled isolated sample in the initial mobile viewport', async ({ page }) => {
+test('@claim:demo-first-screen shows a filled separate sample in the initial mobile viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?demo=1');
   await expect(page.getByText('Demo — sample data, nothing is saved')).toBeVisible();
@@ -170,13 +170,13 @@ test('@claim:daily-note-fields saves and reloads severity, tags, medicine change
 
 test('@claim:blank-days leaves dates without notes blank and shows no missed-day warning', async ({ page }) => {
   await page.goto('/?demo=1');
-  const initial = await page.locator('.entry-card').count();
+  await expect(page.locator('.entry-card')).toHaveCount(5);
   for (const date of ['2026-08-25', '2026-08-28']) {
     await page.getByLabel('Date').fill(date);
     await page.getByLabel('What changed? optional').fill(`Saved only on ${date}.`);
     await page.getByRole('button', { name: 'Save today’s note' }).click();
   }
-  await expect(page.locator('.entry-card')).toHaveCount(initial + 2);
+  await expect(page.locator('.entry-card')).toHaveCount(7);
   await expect(page.getByText('Days without a note stay blank.')).toBeVisible();
   await expect(page.getByText(/missed-day warning/i)).toHaveCount(0);
   await expect(page.locator('time[datetime="2026-08-26"]')).toHaveCount(0);
@@ -337,9 +337,10 @@ test('@claim:deployment-config defines app rewrites, immutable assets, security 
   expect(config.responseOverrides['404']).toEqual({ rewrite: '/404.html' });
   const notFound = readFileSync('dist/404.html', 'utf8');
   for (const required of ['<header class="site-header">', '<footer>', 'rel="canonical"', 'property="og:title"', 'rel="icon"', 'href="/privacy"', 'href="/terms"']) expect(notFound).toContain(required);
+  expect(notFound).toContain('<h1>We could not find this page</h1>');
 });
 
-test('@claim:live-deployment verifies production identity, billing, headers, routing, and assets', () => {
+test('@claim:live-deployment verifies the price, security headers, page titles and URLs, 404, and built-file hashes', () => {
   test.skip(process.env.LIVE_CLAIM !== '1', 'Run after deployment with LIVE_CLAIM=1.');
   execFileSync(process.execPath, ['scripts/verify-live.mjs'], { stdio: 'inherit' });
 });
