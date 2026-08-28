@@ -15,7 +15,7 @@
 
 ## Interaction and motion
 
-Cards look clipped to paper with a small pseudo-element tab. Severity chips leave an ink-dot trail, and a newly saved entry settles with a 180ms opacity/translate movement. No progress meters or animated health claims. Under reduced motion all transitions become instant.
+Cards look clipped to paper with a small pseudo-element tab. Severity chips leave an ink-dot trail, and a newly saved entry settles with a 180ms vertical movement. Text remains fully opaque throughout so contrast does not dip during motion. No progress meters or animated health claims. Under reduced motion all transitions become instant.
 
 ## Asset plan and provenance
 

@@ -10,6 +10,7 @@ for (const path of ['/', '/log', '/demo', '/privacy', '/terms', '/missing-page']
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('main')).toHaveCount(1);
     await expect(page.locator('h1')).toHaveCount(1);
+    if (path === '/demo') await expect(page.locator('.entry-card').first()).toBeVisible();
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(results.violations.filter(v => ['critical', 'serious'].includes(v.impact ?? ''))).toEqual([]);
     expect(errors).toEqual([]);

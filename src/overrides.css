@@ -16,4 +16,5 @@ footer a{display:inline-flex;align-items:center;min-width:44px;min-height:44px;p
 .update-toast[hidden]{display:none}
 .undo-toast .secondary,.update-toast .secondary{min-height:44px;color:#fffdf7;border-color:#e9ba70;white-space:nowrap}
 .recovery{min-height:60vh}
+@media(prefers-reduced-motion:no-preference){.entry-card{animation-name:settle-contrast}@keyframes settle-contrast{from{transform:translateY(6px)}to{transform:translateY(0)}}}
 @media(max-width:760px){.site-header{flex-wrap:wrap}.site-header nav{gap:2px}.site-header nav a{font-size:14px}.undo-toast,.update-toast{left:18px;right:18px;bottom:12px;justify-content:space-between}.add-tag{display:grid;grid-template-columns:1fr}.add-tag input{width:100%}}
