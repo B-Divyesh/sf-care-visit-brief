@@ -1,0 +1,97 @@
+{
+  "routeResults": [
+    {
+      "route": "/",
+      "status": 200,
+      "title": "Care Visit Brief — Print a clear symptom timeline",
+      "h1": 1,
+      "main": 1,
+      "header": 1,
+      "footer": 1,
+      "seriousOrCritical": []
+    },
+    {
+      "route": "/log",
+      "status": 200,
+      "title": "Symptom timeline — Care Visit Brief",
+      "h1": 1,
+      "main": 1,
+      "header": 1,
+      "footer": 1,
+      "seriousOrCritical": []
+    },
+    {
+      "route": "/?demo=1",
+      "status": 200,
+      "title": "Demo — Care Visit Brief",
+      "h1": 1,
+      "main": 1,
+      "header": 1,
+      "footer": 1,
+      "seriousOrCritical": []
+    },
+    {
+      "route": "/demo",
+      "status": 200,
+      "title": "Demo — Care Visit Brief",
+      "h1": 1,
+      "main": 1,
+      "header": 1,
+      "footer": 1,
+      "seriousOrCritical": []
+    },
+    {
+      "route": "/privacy",
+      "status": 200,
+      "title": "Privacy — Care Visit Brief",
+      "h1": 1,
+      "main": 1,
+      "header": 1,
+      "footer": 1,
+      "seriousOrCritical": []
+    },
+    {
+      "route": "/terms",
+      "status": 200,
+      "title": "Terms — Care Visit Brief",
+      "h1": 1,
+      "main": 1,
+      "header": 1,
+      "footer": 1,
+      "seriousOrCritical": []
+    }
+  ],
+  "notFound": {
+    "status": 404,
+    "title": "Page not found — Care Visit Brief",
+    "h1": 1,
+    "main": 1,
+    "header": 1,
+    "footer": 1,
+    "seriousOrCritical": []
+  },
+  "demo": {
+    "banner": 1,
+    "reset": 1,
+    "startReal": 1,
+    "sampleBottom": 612,
+    "viewportHeight": 844,
+    "entryCards": 5
+  },
+  "history": {
+    "backLog": {
+      "scrollY": 320,
+      "focused": "Start a private symptom timeline"
+    },
+    "backHome": {
+      "scrollY": 900,
+      "focused": "Turn symptom notes into a visit brief"
+    },
+    "forwardLog": {
+      "scrollY": 320,
+      "focused": "Start a private symptom timeline"
+    }
+  },
+  "offlineSample": true,
+  "consoleErrors": []
+}
