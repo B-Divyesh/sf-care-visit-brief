@@ -1,2 +1,10 @@
 .license input{color:#1e2b3b;background:#fffdf7}
 .license input::placeholder{color:#53606b}
+.site-header nav{gap:8px}
+.site-header nav a{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;color:#1e2b3b;font-weight:650}
+.tag{min-width:44px;min-height:44px;padding:8px 13px}
+.undo-toast,.update-toast{position:fixed;z-index:5;right:18px;bottom:18px;max-width:calc(100% - 36px);display:flex;align-items:center;gap:12px;padding:12px 14px;background:#1e2b3b;color:#fffdf7;border:2px solid #e9ba70;box-shadow:4px 5px 0 #d8cab1}
+.update-toast[hidden]{display:none}
+.undo-toast .secondary,.update-toast .secondary{min-height:44px;color:#fffdf7;border-color:#e9ba70;white-space:nowrap}
+.recovery{min-height:60vh}
+@media(max-width:760px){.site-header nav{gap:2px}.site-header nav a{font-size:14px}.undo-toast,.update-toast{left:18px;right:18px;bottom:12px;justify-content:space-between}}

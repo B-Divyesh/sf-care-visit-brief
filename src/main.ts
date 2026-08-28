@@ -1,5 +1,6 @@
 import './style.css';
 import './overrides.css';
+import { normalizeEntries, parseBackup } from './backup';
 import { clearEntries, loadEntries, saveEntries } from './db';
 import { sampleEntries } from './sample';
 import type { DataFile, Entry } from './types';
@@ -10,6 +11,9 @@ const escapeHtml = (s: string) => s.replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<
 let tags = { symptoms: ['Headache', 'Fatigue', 'Nausea', 'Pain'], triggers: ['Poor sleep', 'Stress', 'Food', 'Activity'], medications: ['New dose', 'As needed', 'Missed dose'] };
 let entries: Entry[] = [];
 let demo = false;
+let pendingRemoval: Entry | null = null;
+let removalTimer: number | undefined;
+let statusMessage = '';
 function premium() {
   try { return Boolean(JSON.parse(localStorage.getItem('sb_license_verdict:care-visit-brief') || '{}').valid); } catch { return false; }
 }
@@ -28,7 +32,8 @@ function setTitle() {
 function navigate(path: string) { history.pushState({}, '', path); render(); window.scrollTo(0, 0); }
 
 function shell(content: string) {
-  return `<header class="site-header"><a class="wordmark" href="/" data-route>Care <i>Visit</i> Brief</a><nav aria-label="Primary"><a href="/log" data-route>Log</a><a href="/demo" data-route>Demo</a><a href="/privacy" data-route>Privacy</a></nav></header>${content}<footer><p>Care Visit Brief turns small notes into a useful visit history.</p><p><a href="/privacy" data-route>Privacy</a> · <a href="/terms" data-route>Terms</a> · Built by Param Factory · v1.0.0</p><p class="fine">Illustration generated for this product.</p></footer><div class="live" aria-live="polite" aria-atomic="true"></div>`;
+  const undo = pendingRemoval ? `<aside class="undo-toast" role="status"><span>Entry from ${dateLabel(pendingRemoval.date)} removed.</span><button class="secondary" data-action="undo-removal">Undo</button></aside>` : '';
+  return `<header class="site-header"><a class="wordmark" href="/" data-route>Care <i>Visit</i> Brief</a><nav aria-label="Primary"><a href="/log" data-route>Log</a><a href="/demo" data-route>Demo</a><a href="/privacy" data-route>Privacy</a></nav></header>${content}<footer><p>Care Visit Brief turns small notes into a useful visit history.</p><p><a href="/privacy" data-route>Privacy</a> · <a href="/terms" data-route>Terms</a> · Built by Param Factory · v1.0.0</p><p class="fine">Illustration generated for this product.</p></footer>${undo}<div class="update-toast" hidden role="status"><span>An update is ready.</span><button class="secondary" data-action="apply-update">Reload to update</button></div><div class="live" aria-live="polite" aria-atomic="true">${escapeHtml(statusMessage)}</div>`;
 }
 function banner() {
   return demo ? `<aside class="demo-banner" aria-label="Demo mode"><strong>Demo — sample data, nothing is saved</strong><span><button class="text-button" data-action="reset-demo">Reset demo</button><button class="text-button" data-action="start-real">Start for real</button></span></aside>` : '';
@@ -63,14 +68,22 @@ async function ensureDemo() {
   const old = await loadEntries(true);
   if (!old.length) await saveEntries(true, sampleEntries);
 }
-async function render() {
-  setTitle(); demo = route() === '/demo'; if (demo) await ensureDemo(); entries = isAppRoute() ? await loadEntries(demo) : [];
-  const content = route() === '/' ? landing() : route() === '/log' || route() === '/demo' ? appPage() : route() === '/privacy' || route() === '/terms' ? legal(route().slice(1) as 'privacy' | 'terms') : notFound();
-  app.innerHTML = shell(content); bind(); document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
-  const storedLicense = localStorage.getItem('sb_license:care-visit-brief');
-  try { const verdict = JSON.parse(localStorage.getItem('sb_license_verdict:care-visit-brief') || '{}'); if (storedLicense && (!verdict.checked || Date.now() - verdict.checked > 86_400_000)) void verifyLicense(storedLicense); } catch { if (storedLicense) void verifyLicense(storedLicense); }
+function recovery(error: unknown) {
+  setTitle();
+  const detail = error instanceof Error ? error.message : 'The saved record could not be opened.';
+  app.innerHTML = shell(`<main id="main" tabindex="-1" class="legal recovery"><p class="eyebrow">Your data is safe</p><h1>We could not open this record</h1><p>Your notes were not changed. Reload the page, or restore a known-good JSON backup from the log.</p><p class="fine">${escapeHtml(detail)}</p><p><button class="button" data-action="retry-render">Reload the record</button></p></main>`);
+  bind(); document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
 }
-function announce(message: string) { const live = document.querySelector('.live'); if (live) live.textContent = message; }
+async function render() {
+  try {
+    setTitle(); demo = route() === '/demo'; if (demo) await ensureDemo(); entries = isAppRoute() ? normalizeEntries(await loadEntries(demo)) : [];
+    const content = route() === '/' ? landing() : route() === '/log' || route() === '/demo' ? appPage() : route() === '/privacy' || route() === '/terms' ? legal(route().slice(1) as 'privacy' | 'terms') : notFound();
+    app.innerHTML = shell(content); bind(); document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+    const storedLicense = localStorage.getItem('sb_license:care-visit-brief');
+    try { const verdict = JSON.parse(localStorage.getItem('sb_license_verdict:care-visit-brief') || '{}'); if (storedLicense && (!verdict.checked || Date.now() - verdict.checked > 86_400_000)) void verifyLicense(storedLicense); } catch { if (storedLicense) void verifyLicense(storedLicense); }
+  } catch (error) { recovery(error); }
+}
+function announce(message: string) { statusMessage = message; const live = document.querySelector('.live'); if (live) live.textContent = message; }
 function selected(kind: keyof typeof tags) { return [...document.querySelectorAll<HTMLButtonElement>(`[data-tag="${kind}"][aria-pressed="true"]`)].map(b => b.dataset.value!); }
 function chosenSeverity() { return Number(document.querySelector<HTMLButtonElement>('[data-severity][aria-pressed="true"]')?.dataset.severity ?? 2); }
 async function addEntry(form: HTMLFormElement) {
@@ -91,7 +104,7 @@ function printBrief() {
   const from = document.querySelector<HTMLInputElement>('#brief-from')?.value || '0000-01-01'; const to = document.querySelector<HTMLInputElement>('#brief-to')?.value || '9999-12-31'; const list = sorted().filter(e => e.date >= from && e.date <= to); if (!list.length) { announce('No saved notes fall in that date range. Choose another range.'); return; }
   const rows = list.map(e => `<section><h2>${dateLabel(e.date)} · Severity ${e.severity}/4</h2><p><b>Symptoms:</b> ${escapeHtml(e.symptoms.join(', ') || '—')}</p><p><b>Possible triggers:</b> ${escapeHtml(e.triggers.join(', ') || '—')}</p><p><b>Medicine changes:</b> ${escapeHtml(e.medications.join(', ') || '—')}</p>${e.note ? `<p>${escapeHtml(e.note)}</p>` : ''}</section>`).join(''); const coverText = premium() ? localStorage.getItem('care-visit-brief:cover-note') : ''; const cover = coverText ? `<h2>Personal cover note</h2><p>${escapeHtml(coverText)}</p>` : ''; const win = window.open('', '_blank', 'noopener,noreferrer'); if (!win) { announce('Your browser blocked the print window. Allow pop-ups and try again.'); return; } win.document.write(`<!doctype html><html lang="en"><head><title>Visit brief</title><style>body{font:16px Arial,sans-serif;color:#17222e;max-width:720px;margin:40px auto;padding:0 24px}h1{font:32px Georgia,serif}h2{font-size:18px;border-top:1px solid #87929d;padding-top:14px;margin-top:22px}p{line-height:1.45}</style></head><body><h1>Care Visit Brief</h1><p>Record from ${from === '0000-01-01' ? 'the beginning' : dateLabel(from)} to ${to === '9999-12-31' ? 'today' : dateLabel(to)}. This is a personal record, not medical advice.</p>${cover}${rows}<script>window.onload=()=>window.print()<\/script></body></html>`); win.document.close();
 }
-async function importFile(file: File) { try { const data = JSON.parse(await file.text()) as DataFile; if (data.version !== 1 || !Array.isArray(data.entries)) throw new Error(); entries = data.entries; await saveEntries(demo, entries); announce('Backup restored.'); render(); } catch { announce('This file is not a Care Visit Brief JSON backup. Choose another file.'); } }
+async function importFile(file: File) { try { const data = parseBackup(JSON.parse(await file.text())); await saveEntries(demo, data.entries); entries = data.entries; announce('Backup restored.'); void render(); } catch { announce('This file is not a complete Care Visit Brief JSON backup. Your existing record was not changed. Choose another file.'); } }
 async function verifyLicense(token?: string) { const value = token || document.querySelector<HTMLInputElement>('#license-token')?.value.trim() || localStorage.getItem('sb_license:care-visit-brief'); if (!value) { announce('Paste a license token first.'); return; } localStorage.setItem('sb_license:care-visit-brief', value); const status = document.querySelector('#license-status'); if (status) status.textContent = 'Checking license…'; try { const response = await fetch(`https://api.sociobot.in/api/v1/products/care-visit-brief/verify?license=${encodeURIComponent(value)}`); const result = await response.json() as { valid: boolean }; localStorage.setItem('sb_license_verdict:care-visit-brief', JSON.stringify({ ...result, checked: Date.now() })); if (status) status.textContent = result.valid ? 'License active.' : 'License is not active. You can buy a new unlock.'; } catch { const old = JSON.parse(localStorage.getItem('sb_license_verdict:care-visit-brief') || '{}'); localStorage.setItem('sb_license_verdict:care-visit-brief', JSON.stringify({ ...old, checked: Date.now() })); if (status) status.textContent = 'Could not check the license now. Your saved verdict will be used when available.'; } render(); }
 function bind() {
   document.querySelectorAll<HTMLAnchorElement>('[data-route]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); navigate(a.getAttribute('href')!); }));
@@ -99,9 +112,24 @@ function bind() {
   document.querySelectorAll<HTMLButtonElement>('[data-severity]').forEach(b => b.addEventListener('click', () => { document.querySelectorAll<HTMLButtonElement>('[data-severity]').forEach(x => { x.classList.toggle('selected', x === b); x.setAttribute('aria-pressed', String(x === b)); }); }));
   document.querySelectorAll<HTMLButtonElement>('[data-tag]').forEach(b => b.addEventListener('click', () => { const active = b.getAttribute('aria-pressed') === 'true'; b.setAttribute('aria-pressed', String(!active)); b.classList.toggle('selected', !active); }));
   document.querySelectorAll<HTMLInputElement>('[data-custom]').forEach(input => input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const value = input.value.trim(); const kind = input.dataset.custom as keyof typeof tags; if (value && !tags[kind].includes(value)) { tags[kind].push(value); input.value = ''; const host = document.querySelector(`[data-group="${kind}"]`)!; host.insertAdjacentHTML('beforeend', `<button type="button" class="tag selected" data-tag="${kind}" data-value="${escapeHtml(value)}" aria-pressed="true">${escapeHtml(value)}</button>`); const b = host.lastElementChild as HTMLButtonElement; b.addEventListener('click', () => { const active = b.getAttribute('aria-pressed') === 'true'; b.setAttribute('aria-pressed', String(!active)); b.classList.toggle('selected', !active); }); } } }));
-  document.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(b => b.addEventListener('click', async () => { const action = b.dataset.action; if (action === 'csv') csv(); if (action === 'json') json(); if (action === 'encrypted') await encrypted(); if (action === 'print') printBrief(); if (action === 'delete-entry') { entries = entries.filter(x => x.id !== b.dataset.id); await saveEntries(demo, entries); announce('Entry removed.'); render(); } if (action === 'reset-demo') { await clearEntries(true); await ensureDemo(); announce('Demo reset.'); render(); } if (action === 'start-real') { await clearEntries(true); navigate('/log'); } if (action === 'license') await verifyLicense(); }));
+  document.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(b => b.addEventListener('click', async () => { const action = b.dataset.action; if (action === 'csv') csv(); if (action === 'json') json(); if (action === 'encrypted') await encrypted(); if (action === 'print') printBrief(); if (action === 'delete-entry') { pendingRemoval = entries.find(x => x.id === b.dataset.id) ?? null; entries = entries.filter(x => x.id !== b.dataset.id); await saveEntries(demo, entries); announce('Entry removed. Select Undo to restore it.'); if (removalTimer) window.clearTimeout(removalTimer); removalTimer = window.setTimeout(() => { pendingRemoval = null; void render(); }, 10_000); void render(); } if (action === 'undo-removal' && pendingRemoval) { entries.push(pendingRemoval); await saveEntries(demo, entries); pendingRemoval = null; if (removalTimer) window.clearTimeout(removalTimer); announce('Entry restored.'); void render(); } if (action === 'reset-demo') { await clearEntries(true); await ensureDemo(); announce('Demo reset.'); void render(); } if (action === 'start-real') { await clearEntries(true); navigate('/log'); } if (action === 'license') await verifyLicense(); if (action === 'retry-render') void render(); if (action === 'apply-update') applyUpdate(); }));
   document.querySelector<HTMLInputElement>('#import-file')?.addEventListener('change', e => { const file = (e.target as HTMLInputElement).files?.[0]; if (file) importFile(file); });
   document.querySelector<HTMLTextAreaElement>('#cover-note')?.addEventListener('input', e => localStorage.setItem('care-visit-brief:cover-note', (e.target as HTMLTextAreaElement).value));
   const license = new URLSearchParams(location.search).get('license'); if (license) { history.replaceState({}, '', location.pathname); verifyLicense(license); }
 }
-window.addEventListener('popstate', render); if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => undefined)); render();
+let updateWorker: ServiceWorker | null = null;
+let reloadForUpdate = false;
+function showUpdate(worker: ServiceWorker) { updateWorker = worker; document.querySelector<HTMLElement>('.update-toast')?.removeAttribute('hidden'); }
+function applyUpdate() { if (updateWorker) { reloadForUpdate = true; updateWorker.postMessage({ type: 'SKIP_WAITING' }); } }
+function registerServiceWorker() {
+  navigator.serviceWorker.register('/sw.js').then(registration => {
+    if (registration.waiting) showUpdate(registration.waiting);
+    registration.addEventListener('updatefound', () => {
+      const installing = registration.installing;
+      if (!installing) return;
+      installing.addEventListener('statechange', () => { if (installing.state === 'installed' && navigator.serviceWorker.controller) showUpdate(installing); });
+    });
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloadForUpdate) window.location.reload(); });
+  }).catch(() => undefined);
+}
+window.addEventListener('popstate', () => void render()); if ('serviceWorker' in navigator) window.addEventListener('load', registerServiceWorker); void render();

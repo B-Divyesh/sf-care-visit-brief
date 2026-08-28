@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { chromium, expect, test } from '@playwright/test';
 
 test('@claim:csv-export exports one CSV row for every sample record', async ({ page }) => {
   await page.goto('/demo');
@@ -15,15 +15,30 @@ test('@claim:csv-export exports one CSV row for every sample record', async ({ p
   expect(text).toContain('2026-08-05');
 });
 
-test('@claim:offline-reload reloads the demo after a first online visit', async ({ page, context }) => {
-  await page.goto('/demo');
-  await page.evaluate(() => navigator.serviceWorker.ready);
-  await page.reload();
-  await context.setOffline(true);
-  await page.goto('/demo');
-  await expect(page.getByText('Demo — sample data, nothing is saved')).toBeVisible();
-  await expect(page.getByText('Aug 23, 2026')).toBeVisible();
-  await context.setOffline(false);
+test('@claim:offline-reload opens the demo offline after the first online visit', async () => {
+  // A separate loopback origin keeps this first-visit check independent from
+  // other service-worker tests. A dedicated browser profile is a real fresh
+  // first visit, rather than only a fresh tab.
+  const browser = await chromium.launch();
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.goto('http://localhost:4173/demo');
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+    await expect.poll(() => page.evaluate(async () => {
+      const assets = [...document.querySelectorAll<HTMLScriptElement | HTMLLinkElement>('script[src],link[rel="stylesheet"]')]
+        .map(element => element instanceof HTMLScriptElement ? element.src : element.href);
+      return Boolean(await caches.match('/demo')) && (await Promise.all(assets.map(asset => caches.match(asset)))).every(Boolean);
+    })).toBeTruthy();
+    await context.setOffline(true);
+    await page.goto('http://localhost:4173/demo');
+    await expect(page.getByText('Demo — sample data, nothing is saved')).toBeVisible();
+    await expect(page.getByText('Aug 23, 2026')).toBeVisible();
+  } finally {
+    await context.setOffline(false);
+    await browser.close();
+  }
 });
 
 test('@claim:device-only demo makes no cross-origin network requests', async ({ page }) => {

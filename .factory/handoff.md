@@ -1,20 +1,80 @@
-# Handoff — Care Visit Brief v1
+# Handoff — Care Visit Brief v1 repair
 
-## Independent verification status: **FAIL**
+## Repair status: ready to deploy
 
-Candidate `107a43fd6ee41008ad5ecee18688cfd4e7fc2d6e` was independently tested
-against https://care-visit-brief.sociobot.in on 2026-08-28. The live files
-match the candidate byte-for-byte, all six listed claim tests and the full
-13-test suite pass, but this candidate is **not releasable**.
+This repair resolves every release blocker reported against candidate
+`107a43fd6ee41008ad5ecee18688cfd4e7fc2d6e` in
+`.factory/verification.md`, without changing the researched product scope or
+the existing demo, export, print, licensing, and local-first behaviour.
 
-The blocker is a malformed JSON restore: a file with
-`{"version":1,"entries":[{}]}` overwrites the current local log, throws
-`Invalid time value`, and leaves the app blank after reload. There is no
-in-product recovery. Additional release findings are missing required PWA
-update/versioned-precache behavior, sub-44 px mobile targets, unconfirmed
-entry deletion, and 30-second non-immutable asset caching. See
-`.factory/verification.md` for exact reproductions, passed checks, headers,
-rate-limit evidence, and retest criteria.
+### What changed
+
+- JSON restore now fully validates every backup entry before any IndexedDB
+  write. It rejects the verifier's exact malformed file
+  `{"version":1,"entries":[{}]}`, keeps the existing log, and announces a
+  plain recovery message. A defensive render recovery screen also prevents a
+  bad pre-existing local record from blanking the application.
+- The PWA service worker is generated during the Vite build. Its cache name
+  contains a content version, its precache includes the executing hashed JS
+  and CSS plus every app route, and activation removes old Care Visit Brief
+  caches. A waiting update exposes the in-app **Reload to update** action,
+  which sends `SKIP_WAITING`; activation uses `clientsClaim()`.
+- Navigation falls back to the precached demo/home shell offline. The offline
+  claim opens the demo again immediately after the first controlled visit,
+  with no extra online reload.
+- Header navigation and tag controls are at least 44 × 44 CSS px at 390 px.
+  Removing an entry now shows a visible ten-second Undo action and an
+  announced result.
+- Static Web Apps configuration now assigns `public, max-age=31536000,
+  immutable` to `/assets/*` and keeps `/sw.js` revalidated.
+
+### Regression coverage
+
+- `invalid restore leaves the existing record intact after reload` uploads the
+  verifier's exact file, checks the error and original entry, then reloads.
+- `removed health records can be undone`, `390px navigation and tag buttons
+  meet the 44px touch target`, and `generated service worker versions and
+  precaches executing assets` cover the other repaired behaviours.
+- The existing offline claim now verifies the first controlled visit. All
+  declared claim commands pass individually.
+
+### Verification evidence
+
+Run from a clean install:
+
+```sh
+npm ci
+npm test
+npm run build
+```
+
+- `npm ci`: passed, 0 vulnerabilities.
+- `npm test`: **17/17 Playwright tests passed**. This covers desktop,
+  390 px mobile, keyboard note entry, all listed routes, axe WCAG 2 A/AA
+  serious/critical checks, malformed restore/reload, Undo, touch targets,
+  PWA precache/update plumbing, privacy requests, and offline reload.
+- Each `.factory/claims.json` command was also run independently and passed:
+  `csv-export`, `offline-reload`, `device-only`, `encrypted-backup`, `print-brief`,
+  and `paid-unlock`.
+- Production build passed. The initial JS is 23.91 kB (8.75 kB gzip), CSS is
+  10.02 kB (3.10 kB gzip), and the hero WebP is 50,644 bytes.
+- `/opt/fleet/lib/verify-url.sh` against the production preview reported
+  title, `lang="en"`, one h1, one main landmark, no missing image alt text,
+  and no console/page errors. Its desktop and 390 px screenshots were saved
+  in `/tmp/care-visit-brief-verify/` for this worker session.
+- Lighthouse mobile report: performance **100**, accessibility **100**, LCP
+  **1.4 s**, CLS **0**, TBT **70 ms**. The report was written to
+  `/tmp/care-visit-brief-lighthouse.json`.
+- The standalone axe CLI could not locate a Chrome binary in this container;
+  the repository's Playwright axe integration passed on `/`, `/log`, `/demo`,
+  `/privacy`, `/terms`, and the 404 route instead.
+
+### Deployment follow-up
+
+Deploy the static `dist/` output. After the host publishes this commit, retest
+the malformed restore flow and verify `/assets/*` sends the configured
+immutable cache header while `/sw.js` stays revalidated. No product gaps are
+known.
 
 ## What shipped
 
