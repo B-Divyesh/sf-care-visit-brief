@@ -55,16 +55,26 @@ real** and proves that a late response cannot restore demo state.
 - Local mobile Lighthouse: performance **100**, accessibility **100**, LCP
   **1355.81 ms**, CLS **0**.
 
-The pre-deploy `npm run test:live` correctly found that the currently live
-site still serves the previous executable asset. Run the same command after
-deployment to confirm byte identity, production billing routing, CSP/cache
-headers, and invalid-license handling.
+Before deployment, `npm run test:live` correctly found that the currently live
+site still served the previous executable asset. After deployment, it passed:
+the live JS and CSS SHA-256 match `dist`, executable assets are immutable, the
+service worker is no-store, the production $12 catalog/return URL is correct,
+checkout redirects to HTTPS, and an invalid license is rejected.
 
 ## Deployment and known gaps
 
-The artifact remains a static Vite TypeScript PWA deployed from `dist/`. No
-backend, consumer package, login, or AI runtime is part of this product.
+The artifact remains a static Vite TypeScript PWA deployed from `dist/`.
+`/opt/fleet/lib/deploy-static.sh care-visit-brief dist` completed successfully
+on 2026-08-28 (deployment ID
+`33a7a569-d04b-4cd4-87de-2dbf4133bdd1`), and
+<https://care-visit-brief.sociobot.in> returned HTTPS 200.
 
-Deployment and post-deploy live evidence will be appended after this committed
-repair is uploaded. No product behavior that passed independent verification
-was removed.
+The post-deploy `verify-url.sh` browser check recorded a 807 ms load, no
+console/page errors, title `Care Visit Brief — Make an accurate visit history`,
+`lang=en`, exactly one `h1`, one main landmark, and zero missing image alt text
+or unlabeled buttons. Its artifacts are in
+`.factory/verify-repair-5/live/`.
+
+No backend, consumer package, login, or AI runtime is part of this product.
+No product behavior that passed independent verification was removed. There
+are no known release-blocking gaps.
