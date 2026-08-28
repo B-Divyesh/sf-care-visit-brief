@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-08-28T21:03:21Z",
+  "origin": "https://care-visit-brief.sociobot.in",
+  "releaseCommit": "091d2f19b919919323c182453f4f118c82e35824",
+  "deploymentId": "a81cf1b5-7fd3-4759-b341-40cfba335a41",
+  "firstScreen": {
+    "headline": "Turn symptom notes into a visit brief",
+    "action": "Try it with sample data",
+    "factsBottomPx": 721,
+    "viewportHeightPx": 844
+  },
+  "demo": {
+    "oneClickUrl": "https://care-visit-brief.sociobot.in/?demo=1",
+    "noteCount": 5,
+    "sampleBottomPx": 611.796875,
+    "banner": true,
+    "reset": true,
+    "exit": true
+  },
+  "routes": [
+    {"path":"/","status":200,"title":"Care Visit Brief — Print a clear symptom timeline","canonical":"https://care-visit-brief.sociobot.in/","h1":1,"main":1,"seriousAxe":0},
+    {"path":"/log","status":200,"title":"Symptom timeline — Care Visit Brief","canonical":"https://care-visit-brief.sociobot.in/log","h1":1,"main":1,"seriousAxe":0},
+    {"path":"/?demo=1","status":200,"title":"Demo — Care Visit Brief","canonical":"https://care-visit-brief.sociobot.in/?demo=1","h1":1,"main":1,"seriousAxe":0},
+    {"path":"/demo","status":200,"title":"Demo — Care Visit Brief","canonical":"https://care-visit-brief.sociobot.in/?demo=1","h1":1,"main":1,"seriousAxe":0},
+    {"path":"/privacy","status":200,"title":"Privacy — Care Visit Brief","canonical":"https://care-visit-brief.sociobot.in/privacy","h1":1,"main":1,"seriousAxe":0},
+    {"path":"/terms","status":200,"title":"Terms — Care Visit Brief","canonical":"https://care-visit-brief.sociobot.in/terms","h1":1,"main":1,"seriousAxe":0},
+    {"path":"/missing-page","status":404,"title":"Page not found — Care Visit Brief","canonical":"https://care-visit-brief.sociobot.in/404.html","h1":1,"main":1,"seriousAxe":0}
+  ],
+  "reviewedCopy": {
+    "firstStep": "Choose the day’s severity",
+    "blankDays": "Leave days without notes blank",
+    "caption": "Record only details you may want to discuss with a clinician.",
+    "notFoundHeading": "We could not find this page"
+  },
+  "mobile": {"widthPx":390,"horizontalOverflow":false,"testedTargets":42,"undersizedTargets":0},
+  "history": {"backLogY":320,"backHomeY":900,"forwardLogY":320,"headingFocus":true},
+  "isolation": {"realNotePreserved":true,"demoRecordRemoved":true,"demoLocalKeys":[]},
+  "privacy": {"normalFlowOrigins":["https://care-visit-brief.sociobot.in"],"analyticsRequests":0},
+  "offline": {"newTabAfterHttpCacheClear":true,"banner":true,"sample":true},
+  "liveClaim": {"result":"passed","builtFileHashesMatch":true,"priceUsd":12,"securityHeaders":true}
+}

@@ -8,14 +8,14 @@ Audited 2026-08-28 after the round-3 repair. Counts treat hyphenated terms and n
 |---|---:|---|
 | Private symptom notes for appointments | 5 | Pass |
 | Turn symptom notes into a visit brief | 7 | Pass |
-| For people with changing symptoms, build a short timeline to print for a clinician. | 13 | Pass |
+| For people with changing symptoms, build a short timeline to print for a clinician. | 14 | Pass |
 | Try it with sample data | 5 | Pass |
 | Open a filled sample timeline. | 5 | Pass |
 | Your notes stay untouched. | 4 | Pass |
 | Notes stay on this device | 5 | Pass |
 | Works offline after your first visit | 6 | Pass |
 | $12 USD once; the timeline stays free | 7 | Pass |
-| Record only details you may want to discuss with a clinician. | 10 | Pass |
+| Record only details you may want to discuss with a clinician. | 11 | Pass |
 | Record what changed | 3 | Pass |
 | Save a severity number, optional tags, and a short note. | 10 | Pass |
 | How hard was it today? | 5 | Pass |
@@ -49,7 +49,7 @@ Audited 2026-08-28 after the round-3 repair. Counts treat hyphenated terms and n
 | Pay $12 USD once to add a personal cover note. | 10 | Pass |
 | Your timeline, exports, print tools, and safety information stay free. | 10 | Pass |
 | Restore my unlock | 3 | Pass |
-| Care Visit Brief turns daily notes into a printable visit brief. | 10 | Pass |
+| Care Visit Brief turns daily notes into a printable visit brief. | 11 | Pass |
 | Illustration generated for this product. | 5 | Pass |
 
 ## Demo first screen
