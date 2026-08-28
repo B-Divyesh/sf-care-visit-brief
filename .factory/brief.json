@@ -1,0 +1,9 @@
+{
+  "slug": "care-visit-brief",
+  "title": "Care Visit Brief",
+  "artifact_class": "pwa-offline",
+  "user": "People with a new or fluctuating chronic condition who need to give a clinician an accurate, short history between appointments.",
+  "smallest_useful_product": "Offline PWA with one-tap symptom severity, optional trigger and medication tags, a missed-day-safe timeline, and a printable one-page visit brief.",
+  "monetization": "one-time",
+  "constraints": "Health data stays on device by default; clear medical disclaimer; encrypted export option; never infer conditions or make treatment recommendations."
+}

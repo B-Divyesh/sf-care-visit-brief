@@ -1,0 +1,44 @@
+[
+  {
+    "id": "csv-export",
+    "claim": "Exports the log as CSV",
+    "where": "Visit brief tools",
+    "test": "npm test -- --grep @claim:csv-export",
+    "sandbox": "demo data; downloaded CSV has the header and one row per sample record"
+  },
+  {
+    "id": "offline-reload",
+    "claim": "Works after the first visit offline",
+    "where": "Landing facts, README",
+    "test": "npm test -- --grep @claim:offline-reload",
+    "sandbox": "fresh browser context visits /demo, then goes offline and reloads /demo"
+  },
+  {
+    "id": "device-only",
+    "claim": "Stays on this device",
+    "where": "Landing facts, Privacy page, README",
+    "test": "npm test -- --grep @claim:device-only",
+    "sandbox": "fresh browser context uses /demo and exports a backup while request URLs are observed"
+  },
+  {
+    "id": "encrypted-backup",
+    "claim": "Downloads an encrypted backup",
+    "where": "Visit brief tools, README",
+    "test": "npm test -- --grep @claim:encrypted-backup",
+    "sandbox": "demo data; password-protected download has AES-GCM metadata and does not expose sample text"
+  },
+  {
+    "id": "print-brief",
+    "claim": "Makes a printable visit brief",
+    "where": "Landing, Visit brief tools, README",
+    "test": "npm test -- --grep @claim:print-brief",
+    "sandbox": "demo data; print window contains the sample chronology"
+  },
+  {
+    "id": "paid-unlock",
+    "claim": "$12 one-time unlock includes a personal cover note for printed briefs",
+    "where": "Landing, paid section, README",
+    "test": "npm test -- --grep @claim:paid-unlock",
+    "sandbox": "landing page exposes the Sociobot checkout URL and license restore control"
+  }
+]

@@ -1,0 +1,4 @@
+{
+  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/assets/*", "/*.js", "/*.css", "/*.png", "/*.webp", "/*.svg", "/manifest.webmanifest"] },
+  "globalHeaders": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.sociobot.in; worker-src 'self'; base-uri 'self'; form-action 'self' https://api.sociobot.in" }
+}
