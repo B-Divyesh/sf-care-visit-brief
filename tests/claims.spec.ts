@@ -62,33 +62,82 @@ test('@claim:device-only demo makes no cross-origin network requests', async ({ 
 });
 
 test('@claim:encrypted-backup downloads an AES-GCM protected backup', async ({ page }) => {
-  test.setTimeout(8000);
+  test.setTimeout(20_000);
   await page.goto('/demo');
   await page.getByText('Make an encrypted backup').click();
   await page.getByLabel('Backup password').fill('a-long-demo-password');
   const download = page.waitForEvent('download', { timeout: 5000 });
   await page.getByRole('button', { name: 'Download encrypted backup' }).click({ timeout: 5000 });
+  const file = await download;
+  const stream = await file.createReadStream();
+  const decoder = new TextDecoder(); let text = '';
+  for await (const chunk of stream as AsyncIterable<Uint8Array>) text += decoder.decode(chunk, { stream: true });
+  const data = JSON.parse(text + decoder.decode());
+  expect(data).toMatchObject({ encrypted: 'AES-GCM', kdf: 'PBKDF2-SHA-256', iterations: 600000 });
+  expect(data.data).not.toContain('Headache');
+  await page.locator('.entry-card').first().getByRole('button', { name: 'Remove entry' }).click();
+  await expect(page.locator('.undo-toast')).toBeVisible();
+  await page.getByLabel('Password for an encrypted backup').fill('a-long-demo-password');
+  await page.locator('#import-file').setInputFiles(await file.path());
+  await expect(page.getByText('Aug 23, 2026')).toBeVisible();
+  await expect(page.locator('.live')).toHaveText('Backup restored.');
+  // A person upgrading from the previous release must still be able to open
+  // its 10,000-iteration backup before replacing it with a stronger copy.
+  const legacy = await page.evaluate(async () => {
+    const password = 'a-long-demo-password';
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 10_000, hash: 'SHA-256' }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+    const plain = JSON.stringify({ version: 1, exportedAt: '2026-08-28T12:00:00.000Z', entries: [] });
+    const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain));
+    const encode = (value: Uint8Array) => btoa(String.fromCharCode(...value));
+    return { version: 1, encrypted: 'AES-GCM', kdf: 'PBKDF2-SHA-256', iterations: 10_000, salt: encode(salt), iv: encode(iv), data: encode(new Uint8Array(encrypted)) };
+  });
+  await page.getByLabel('Password for an encrypted backup').fill('a-long-demo-password');
+  await page.locator('#import-file').setInputFiles({ name: 'legacy-encrypted.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(legacy)) });
+  await expect(page.locator('.live')).toHaveText('Backup restored.');
+});
+
+test('@claim:print-brief opens a chronology from the selected records', async ({ page }) => {
+  await page.goto('/demo');
+  const popup = page.waitForEvent('popup');
+  await page.getByRole('button', { name: 'Open printable brief' }).click();
+  const brief = await popup;
+  await expect(brief.getByRole('heading', { name: 'Care Visit Brief' })).toBeVisible();
+  await expect(brief.getByRole('heading', { name: 'Aug 23, 2026 · Severity 4/4' })).toBeVisible();
+  await expect(brief.getByRole('button', { name: 'Print this brief' })).toBeVisible();
+  await brief.close();
+});
+
+test('@claim:json-backup exports a versioned record with every sample entry', async ({ page }) => {
+  await page.goto('/demo');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export backup' }).click();
   const stream = await (await download).createReadStream();
   const decoder = new TextDecoder(); let text = '';
   for await (const chunk of stream as AsyncIterable<Uint8Array>) text += decoder.decode(chunk, { stream: true });
   const data = JSON.parse(text + decoder.decode());
-  expect(data).toMatchObject({ encrypted: 'AES-GCM', kdf: 'PBKDF2-SHA-256', iterations: 10000 });
-  expect(data.data).not.toContain('Headache');
+  expect(data.version).toBe(1);
+  expect(data.entries).toHaveLength(5);
+  expect(data.entries.map((entry: { date: string }) => entry.date)).toContain('2026-08-23');
 });
 
-test('@claim:print-brief opens a chronology from the selected records', async ({ page }) => {
-  await page.addInitScript(() => {
-    (window as Window & { briefHtml?: string }).open = () => ({ document: { write: (html: string) => { (window as Window & { briefHtml?: string }).briefHtml = html; }, close: () => undefined } }) as unknown as Window;
+test('@claim:paid-unlock restores a verified purchase and includes its cover note in a printed brief', async ({ page }) => {
+  await page.route('https://api.sociobot.in/api/v1/products/care-visit-brief/verify?license=demo-license', async route => {
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ valid: true, reason: 'ok', expires_at: null }) });
   });
-  await page.goto('/demo');
+  await page.goto('/log?license=demo-license');
+  await expect(page).toHaveURL(/\/log$/);
+  await expect(page.locator('#license-status')).toHaveText('License active.');
+  await expect(page.getByLabel(/Personal cover note/)).toBeVisible();
+  await page.getByLabel('What changed? optional').fill('A real note for the brief.');
+  await page.getByRole('button', { name: 'Save today’s note' }).click();
+  await expect(page.getByText('A real note for the brief.')).toBeVisible();
+  await page.getByLabel(/Personal cover note/).fill('Ask about the evening flare.');
+  const popup = page.waitForEvent('popup');
   await page.getByRole('button', { name: 'Open printable brief' }).click();
-  const html = await page.evaluate(() => (window as Window & { briefHtml?: string }).briefHtml);
-  expect(html).toContain('Care Visit Brief');
-  expect(html).toContain('Aug 23, 2026 · Severity 4/4');
-});
-
-test('@claim:paid-unlock provides the $12 checkout and license restore path', async ({ page }) => {
-  await page.goto('/');
-  await expect(page.getByRole('link', { name: 'Buy the $12 unlock' })).toHaveAttribute('href', 'https://api.sociobot.in/api/v1/products/care-visit-brief/checkout');
-  await expect(page.getByLabel('Have a license?')).toBeVisible();
+  const brief = await popup;
+  await expect(brief.getByText('Ask about the evening flare.')).toBeVisible();
+  await brief.close();
 });

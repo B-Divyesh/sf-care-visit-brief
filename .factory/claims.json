@@ -22,10 +22,10 @@
   },
   {
     "id": "encrypted-backup",
-    "claim": "Downloads an encrypted backup",
+    "claim": "Downloads an encrypted backup you can restore",
     "where": "Visit brief tools, README",
     "test": "npm test -- --grep @claim:encrypted-backup",
-    "sandbox": "demo data; password-protected download has AES-GCM metadata and does not expose sample text"
+    "sandbox": "demo data; password-protected download has AES-GCM metadata, does not expose sample text, and restores after a deletion"
   },
   {
     "id": "print-brief",
@@ -35,10 +35,17 @@
     "sandbox": "demo data; print window contains the sample chronology"
   },
   {
+    "id": "json-backup",
+    "claim": "Exports a record you can keep",
+    "where": "Landing facts, README",
+    "test": "npm test -- --grep @claim:json-backup",
+    "sandbox": "demo data; downloaded JSON has the portable versioned record and every sample entry"
+  },
+  {
     "id": "paid-unlock",
     "claim": "$12 one-time unlock includes a personal cover note for printed briefs",
     "where": "Landing, paid section, README",
     "test": "npm test -- --grep @claim:paid-unlock",
-    "sandbox": "landing page exposes the Sociobot checkout URL and license restore control"
+    "sandbox": "recorded Sociobot verification response; returned license is saved, unlocks the cover note, and the printed brief contains it"
   }
 ]

@@ -1,135 +1,225 @@
 import './style.css';
 import './overrides.css';
 import { normalizeEntries, parseBackup } from './backup';
-import { clearEntries, loadEntries, saveEntries } from './db';
+import { clearEntries, loadEntries, saveEntries, updateEntries } from './db';
 import { sampleEntries } from './sample';
 import type { DataFile, Entry } from './types';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
+const KDF_ITERATIONS = 600_000;
+const PRODUCT_SLUG = 'care-visit-brief';
+const BILLING_BASE = 'https://api.sociobot.in/api/v1/products';
+const LICENSE_KEY = `sb_license:${PRODUCT_SLUG}`;
+const VERDICT_KEY = `sb_license_verdict:${PRODUCT_SLUG}`;
+const COVER_NOTE_KEY = 'care-visit-brief:cover-note';
 const today = () => new Date().toISOString().slice(0, 10);
-const escapeHtml = (s: string) => s.replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]!));
+const escapeHtml = (value: string) => value.replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]!));
+const b64 = (value: Uint8Array) => btoa(String.fromCharCode(...value));
+const bytes = (value: string) => Uint8Array.from(atob(value), char => char.charCodeAt(0));
+const changeChannel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('care-visit-brief:changes');
+
 let tags = { symptoms: ['Headache', 'Fatigue', 'Nausea', 'Pain'], triggers: ['Poor sleep', 'Stress', 'Food', 'Activity'], medications: ['New dose', 'As needed', 'Missed dose'] };
 let entries: Entry[] = [];
 let demo = false;
-let pendingRemoval: Entry | null = null;
+let pendingRemovals: Entry[] = [];
 let removalTimer: number | undefined;
 let statusMessage = '';
-function premium() {
-  try { return Boolean(JSON.parse(localStorage.getItem('sb_license_verdict:care-visit-brief') || '{}').valid); } catch { return false; }
-}
+let recoveryRaw: unknown = null;
+let updateWorker: ServiceWorker | null = null;
+let updateReady = false;
+let reloadForUpdate = false;
+let licenseMessage = '';
 
 function route() { return location.pathname.replace(/\/$/, '') || '/'; }
 function isAppRoute() { return ['/', '/log', '/demo'].includes(route()); }
-function dateLabel(date: string) { return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${date}T12:00:00`)); }
-function download(name: string, body: BlobPart, type = 'application/json') {
-  const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([body], { type })); link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 400);
+function namespace(isDemo = demo) { return isDemo ? 'demo' : 'real'; }
+function licenseVerdict(): { valid?: boolean; checked?: number } {
+  try { return JSON.parse(localStorage.getItem(VERDICT_KEY) || '{}') as { valid?: boolean; checked?: number }; } catch { return {}; }
 }
+function premium() { return licenseVerdict().valid === true; }
+function dateLabel(date: string) { return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${date}T12:00:00`)); }
 function sorted() { return [...entries].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)); }
 function setTitle() {
   const titles: Record<string, string> = { '/': 'Care Visit Brief — Make an accurate visit history', '/log': 'Daily log — Care Visit Brief', '/demo': 'Demo — Care Visit Brief', '/privacy': 'Privacy — Care Visit Brief', '/terms': 'Terms — Care Visit Brief' };
   document.title = titles[route()] ?? 'Page not found — Care Visit Brief';
 }
-function navigate(path: string) { history.pushState({}, '', path); render(); window.scrollTo(0, 0); }
-
-function shell(content: string) {
-  const undo = pendingRemoval ? `<aside class="undo-toast" role="status"><span>Entry from ${dateLabel(pendingRemoval.date)} removed.</span><button class="secondary" data-action="undo-removal">Undo</button></aside>` : '';
-  return `<header class="site-header"><a class="wordmark" href="/" data-route>Care <i>Visit</i> Brief</a><nav aria-label="Primary"><a href="/log" data-route>Log</a><a href="/demo" data-route>Demo</a><a href="/privacy" data-route>Privacy</a></nav></header>${content}<footer><p>Care Visit Brief turns small notes into a useful visit history.</p><p><a href="/privacy" data-route>Privacy</a> · <a href="/terms" data-route>Terms</a> · Built by Param Factory · v1.0.0</p><p class="fine">Illustration generated for this product.</p></footer>${undo}<div class="update-toast" hidden role="status"><span>An update is ready.</span><button class="secondary" data-action="apply-update">Reload to update</button></div><div class="live" aria-live="polite" aria-atomic="true">${escapeHtml(statusMessage)}</div>`;
-}
-function banner() {
-  return demo ? `<aside class="demo-banner" aria-label="Demo mode"><strong>Demo — sample data, nothing is saved</strong><span><button class="text-button" data-action="reset-demo">Reset demo</button><button class="text-button" data-action="start-real">Start for real</button></span></aside>` : '';
-}
-function entryCard(entry: Entry) {
-  const chips = (label: string, list: string[]) => list.length ? `<p class="entry-tags"><b>${label}:</b> ${list.map(x => `<span>${escapeHtml(x)}</span>`).join('')}</p>` : '';
-  return `<article class="entry-card"><div><time datetime="${entry.date}">${dateLabel(entry.date)}</time><strong class="severity s${entry.severity}">Severity ${entry.severity}/4</strong></div>${chips('Symptoms', entry.symptoms)}${chips('Triggers', entry.triggers)}${chips('Medicines', entry.medications)}${entry.note ? `<p>${escapeHtml(entry.note)}</p>` : ''}<button class="text-button delete" data-action="delete-entry" data-id="${entry.id}">Remove entry</button></article>`;
-}
-function tagGroup(kind: keyof typeof tags, label: string) {
-  return `<fieldset><legend>${label} <span class="optional">optional</span></legend><div class="tag-list" data-group="${kind}">${tags[kind].map(tag => `<button type="button" class="tag" data-tag="${kind}" data-value="${escapeHtml(tag)}" aria-pressed="false">${escapeHtml(tag)}</button>`).join('')}</div><label class="add-tag">Add your own <input type="text" maxlength="32" data-custom="${kind}" aria-label="Add a ${label.toLowerCase()} tag" /></label></fieldset>`;
-}
-function logUi() {
-  const log = sorted();
-  const cover = premium() ? `<label>Personal cover note <span class="optional">included in your printed brief</span><textarea id="cover-note" maxlength="280" rows="2" placeholder="For example: My main question for this visit">${escapeHtml(localStorage.getItem('care-visit-brief:cover-note') || '')}</textarea></label>` : '';
-  return `<section class="log-section" aria-labelledby="log-heading"><div class="section-label">Daily note</div><h2 id="log-heading">Record what changed</h2><p class="intro">A few marks are enough. You can add more only when it helps.</p><form id="entry-form" class="entry-form"><label>Date <input required type="date" name="date" value="${today()}" /></label><fieldset><legend>How hard was it today?</legend><div class="severity-picker" role="group" aria-label="Symptom severity"><button type="button" data-severity="0" aria-pressed="false">0<br><small>None</small></button><button type="button" data-severity="1" aria-pressed="false">1<br><small>Mild</small></button><button type="button" data-severity="2" aria-pressed="true" class="selected">2<br><small>Noticeable</small></button><button type="button" data-severity="3" aria-pressed="false">3<br><small>Hard</small></button><button type="button" data-severity="4" aria-pressed="false">4<br><small>Severe</small></button></div></fieldset>${tagGroup('symptoms', 'Symptoms')}${tagGroup('triggers', 'Possible triggers')}${tagGroup('medications', 'Medicine changes')}<label>What changed? <span class="optional">optional</span><textarea name="note" maxlength="280" rows="3" placeholder="A short note in your own words"></textarea></label><button class="button" type="submit">Save today’s note</button><p class="fine">This log does not diagnose symptoms or recommend treatment.</p></form></section><section class="timeline" aria-labelledby="timeline-heading"><div class="section-label">Your record</div><h2 id="timeline-heading">Timeline</h2>${log.length ? `<p class="intro">Days without a note stay blank. That is useful context too.</p><div class="timeline-list">${log.map(entryCard).join('')}</div>` : `<div class="empty"><p><strong>Your notes will appear here.</strong></p><p>Start with a severity mark. You do not need to fill every field.</p></div>`}</section><section class="brief-tools" aria-labelledby="brief-heading"><div class="section-label">Appointment handoff</div><h2 id="brief-heading">Make a visit brief</h2><p class="intro">Choose a date range. The print view uses only the notes you saved.</p><div class="date-range"><label>From <input id="brief-from" type="date" /></label><label>To <input id="brief-to" type="date" value="${today()}" /></label></div>${cover}<div class="tool-actions"><button class="button" data-action="print">Open printable brief</button><button class="secondary" data-action="csv">Export CSV</button><button class="secondary" data-action="json">Export backup</button></div><details><summary>Make an encrypted backup</summary><p>Choose a password. You need it to open this backup later.</p><label>Backup password <input id="backup-password" type="password" autocomplete="new-password" /></label><button class="secondary" data-action="encrypted">Download encrypted backup</button></details><label class="import-label">Restore from a JSON backup <input id="import-file" type="file" accept="application/json,.json" /></label></section>`;
-}
-function landing() {
-  return `<main id="main" tabindex="-1"><section class="hero"><div class="hero-copy"><p class="eyebrow">Private field notes for appointments</p><h1>Make your visit history clear</h1><p class="lede">For people whose symptoms change between appointments, keep a short record you can hand to a clinician.</p><div class="hero-actions"><a class="button" href="/demo" data-route>Try it with sample data</a><span>See a finished visit history right away.</span></div><ul class="facts"><li>Stays on this device</li><li>Works after the first visit offline</li><li>$12 one-time unlock; the core log stays free</li></ul></div><figure><img src="/assets/notebook-hero.webp" width="1200" height="800" fetchpriority="high" decoding="async" alt="An open ruled notebook, pencil, and blank note paper on a desk." /><figcaption>Keep only the details you may need later.</figcaption></figure></section><section class="product" aria-label="Care Visit Brief log">${logUi()}</section><section class="how"><div><span>1</span><h2>Mark the day</h2><p>Choose a severity number. Add only tags that matter.</p></div><div><span>2</span><h2>Leave gaps alone</h2><p>No missed-day warning. Blank days stay honestly blank.</p></div><div><span>3</span><h2>Bring the record</h2><p>Print a short chronology before your next visit.</p></div></section><section class="privacy-note"><h2>Notes, not medical advice</h2><p>Care Visit Brief stores entries in this browser. It does not diagnose a condition, interpret symptoms, or contact your clinician.</p><p>For urgent symptoms or immediate danger, contact local emergency services.</p></section>${paid()}</main>`;
-}
-function paid() { return `<section class="paid"><div><p class="eyebrow">One-time unlock</p><h2>Keep the whole notebook</h2><p>For $12, add a personal cover note to printed briefs and support ongoing maintenance. Your log, exports, and safety information remain free.</p></div><div><a class="button" href="https://api.sociobot.in/api/v1/products/care-visit-brief/checkout">Buy the $12 unlock</a><label class="license">Have a license? <input id="license-token" placeholder="Paste license token" /><button class="secondary" data-action="license">Verify license</button></label><p id="license-status" class="fine"></p></div></section>`; }
-function appPage() {
-  const heading = demo ? 'Review a sample visit history' : 'Record a clear history';
-  return `<main id="main" tabindex="-1" class="app-main">${banner()}<section class="app-heading"><p class="eyebrow">${demo ? 'Sample record' : 'Your private notebook'}</p><h1>${heading}</h1><p>${demo ? 'This sample shows how sparse notes become a visit handoff.' : 'Keep a small, honest record for your next appointment.'}</p></section>${logUi()}${!demo ? paid() : ''}</main>`;
-}
-function legal(kind: 'privacy' | 'terms') {
-  const isPrivacy = kind === 'privacy';
-  return `<main id="main" tabindex="-1" class="legal"><h1>${isPrivacy ? 'Privacy for your visit notes' : 'Terms for Care Visit Brief'}</h1>${isPrivacy ? `<h2>Your notes stay on your device</h2><p>Entries are stored in your browser’s local database. Care Visit Brief does not send them to a server, use analytics, or sell personal data.</p><h2>Exports are your choice</h2><p>A backup downloads only when you choose it. Encrypted backups use a password in your browser. Do not lose that password.</p><h2>Payment</h2><p>If you buy the optional unlock, Sociobot handles checkout and license verification. The app sends only the license token to verify it.</p>` : `<h2>What this tool is for</h2><p>Care Visit Brief helps you record and print personal observations. It is not medical advice, diagnosis, or emergency care.</p><h2>Your responsibility</h2><p>Check your printed brief before sharing it. Keep your device and backup password secure.</p><h2>Optional purchase</h2><p>The $12 unlock is a one-time purchase. Sociobot and Dodo are the merchant of record. Refunds revoke the related license.</p>`}<p><a href="/" data-route>Return to Care Visit Brief</a></p></main>`;
-}
-function notFound() { return `<main id="main" tabindex="-1" class="legal not-found"><p class="eyebrow">Page not found</p><h1>This page is not in the notebook</h1><p>Return to the log and make the next note count.</p><a class="button" href="/" data-route>Return home</a></main>`; }
-
-async function ensureDemo() {
-  const old = await loadEntries(true);
-  if (!old.length) await saveEntries(true, sampleEntries);
-}
-function recovery(error: unknown) {
-  setTitle();
-  const detail = error instanceof Error ? error.message : 'The saved record could not be opened.';
-  app.innerHTML = shell(`<main id="main" tabindex="-1" class="legal recovery"><p class="eyebrow">Your data is safe</p><h1>We could not open this record</h1><p>Your notes were not changed. Reload the page, or restore a known-good JSON backup from the log.</p><p class="fine">${escapeHtml(detail)}</p><p><button class="button" data-action="retry-render">Reload the record</button></p></main>`);
-  bind(); document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
-}
-async function render() {
-  try {
-    setTitle(); demo = route() === '/demo'; if (demo) await ensureDemo(); entries = isAppRoute() ? normalizeEntries(await loadEntries(demo)) : [];
-    const content = route() === '/' ? landing() : route() === '/log' || route() === '/demo' ? appPage() : route() === '/privacy' || route() === '/terms' ? legal(route().slice(1) as 'privacy' | 'terms') : notFound();
-    app.innerHTML = shell(content); bind(); document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
-    const storedLicense = localStorage.getItem('sb_license:care-visit-brief');
-    try { const verdict = JSON.parse(localStorage.getItem('sb_license_verdict:care-visit-brief') || '{}'); if (storedLicense && (!verdict.checked || Date.now() - verdict.checked > 86_400_000)) void verifyLicense(storedLicense); } catch { if (storedLicense) void verifyLicense(storedLicense); }
-  } catch (error) { recovery(error); }
+function download(name: string, body: BlobPart, type = 'application/json') {
+  const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([body], { type })); link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 400);
 }
 function announce(message: string) { statusMessage = message; const live = document.querySelector('.live'); if (live) live.textContent = message; }
-function selected(kind: keyof typeof tags) { return [...document.querySelectorAll<HTMLButtonElement>(`[data-tag="${kind}"][aria-pressed="true"]`)].map(b => b.dataset.value!); }
+function notifyChange(isDemo = demo) { changeChannel?.postMessage(namespace(isDemo)); }
+function navigate(path: string) { history.pushState({}, '', path); window.scrollTo(0, 0); void render(true); }
+
+function shell(content: string) {
+  const undo = pendingRemovals.length ? `<aside class="undo-toast" role="status"><span>${pendingRemovals.length === 1 ? `Entry from ${dateLabel(pendingRemovals[0].date)} removed.` : `${pendingRemovals.length} entries removed.`}</span><button class="secondary" data-action="undo-removal">Undo removals</button></aside>` : '';
+  const update = updateReady ? `<div class="update-toast" role="status"><span>An update is ready.</span><button class="secondary" data-action="apply-update">Reload to update</button></div>` : '';
+  return `<a class="skip-link" href="#main">Skip to content</a><header class="site-header"><a class="wordmark" href="/" data-route>Care <i>Visit</i> Brief</a><nav aria-label="Primary"><a href="/log" data-route>Log</a><a href="/demo" data-route>Demo</a><a href="/privacy" data-route>Privacy</a></nav></header>${content}<footer><p>Care Visit Brief turns small notes into a useful visit history.</p><p><a href="/privacy" data-route>Privacy</a> · <a href="/terms" data-route>Terms</a> · Built by Param Factory · v1.0.0</p><p class="fine">Illustration generated for this product.</p></footer>${undo}${update}<div class="live" aria-live="polite" aria-atomic="true">${escapeHtml(statusMessage)}</div>`;
+}
+function banner() { return demo ? `<aside class="demo-banner" aria-label="Demo mode"><strong>Demo — sample data, nothing is saved</strong><span><button class="text-button" data-action="reset-demo">Reset demo</button><button class="text-button" data-action="start-real">Start for real</button></span></aside>` : ''; }
+function entryCard(entry: Entry) {
+  const chips = (label: string, list: string[]) => list.length ? `<p class="entry-tags"><b>${label}:</b> ${list.map(tag => `<span>${escapeHtml(tag)}</span>`).join('')}</p>` : '';
+  return `<article class="entry-card"><div><time datetime="${entry.date}">${dateLabel(entry.date)}</time><strong class="severity s${entry.severity}">Severity ${entry.severity}/4</strong></div>${chips('Symptoms', entry.symptoms)}${chips('Triggers', entry.triggers)}${chips('Medicines', entry.medications)}${entry.note ? `<p>${escapeHtml(entry.note)}</p>` : ''}<button class="text-button delete" data-action="delete-entry" data-id="${entry.id}">Remove entry</button></article>`;
+}
+function tagGroup(kind: keyof typeof tags, label: string) { return `<fieldset><legend>${label} <span class="optional">optional</span></legend><div class="tag-list" data-group="${kind}">${tags[kind].map(tag => `<button type="button" class="tag" data-tag="${kind}" data-value="${escapeHtml(tag)}" aria-pressed="false">${escapeHtml(tag)}</button>`).join('')}</div><label class="add-tag">Add your own <input type="text" maxlength="32" data-custom="${kind}" aria-label="Add a ${label.toLowerCase()} tag" /></label></fieldset>`; }
+function restoreTools(prefix = '') { return `<label class="import-label">Restore from a backup <input id="${prefix}import-file" type="file" accept="application/json,.json" /></label><label class="restore-password">Password for an encrypted backup <input id="${prefix}restore-password" type="password" autocomplete="current-password" /></label>`; }
+function logUi() {
+  const log = sorted();
+  const cover = premium() ? `<label>Personal cover note <span class="optional">included in your printed brief</span><textarea id="cover-note" maxlength="280" rows="2" placeholder="For example: My main question for this visit">${escapeHtml(localStorage.getItem(COVER_NOTE_KEY) || '')}</textarea></label>` : '';
+  return `<section class="log-section" aria-labelledby="log-heading"><div class="section-label">Daily note</div><h2 id="log-heading">Record what changed</h2><p class="intro">A few marks are enough. You can add more only when it helps.</p><form id="entry-form" class="entry-form"><label>Date <input required type="date" name="date" max="${today()}" value="${today()}" /></label><fieldset><legend>How hard was it today?</legend><div class="severity-picker" role="group" aria-label="Symptom severity"><button type="button" data-severity="0" aria-pressed="false">0<br><small>None</small></button><button type="button" data-severity="1" aria-pressed="false">1<br><small>Mild</small></button><button type="button" data-severity="2" aria-pressed="true" class="selected">2<br><small>Noticeable</small></button><button type="button" data-severity="3" aria-pressed="false">3<br><small>Hard</small></button><button type="button" data-severity="4" aria-pressed="false">4<br><small>Severe</small></button></div></fieldset>${tagGroup('symptoms', 'Symptoms')}${tagGroup('triggers', 'Possible triggers')}${tagGroup('medications', 'Medicine changes')}<label>What changed? <span class="optional">optional</span><textarea name="note" maxlength="280" rows="3" placeholder="A short note in your own words"></textarea></label><button class="button" type="submit">Save today’s note</button><p class="fine">This log does not diagnose symptoms or recommend treatment.</p></form></section><section class="timeline" aria-labelledby="timeline-heading"><div class="section-label">Your record</div><h2 id="timeline-heading">Timeline</h2>${log.length ? `<p class="intro">Days without a note stay blank. That is useful context too.</p><div class="timeline-list">${log.map(entryCard).join('')}</div>` : `<div class="empty"><p><strong>Your notes will appear here.</strong></p><p>Start with a severity mark. You do not need to fill every field.</p></div>`}</section><section class="brief-tools" aria-labelledby="brief-heading"><div class="section-label">Appointment handoff</div><h2 id="brief-heading">Make a visit brief</h2><p class="intro">Choose a date range. The print view uses only the notes you saved.</p><div class="date-range"><label>From <input id="brief-from" type="date" max="${today()}" /></label><label>To <input id="brief-to" type="date" max="${today()}" value="${today()}" /></label></div>${cover}<div class="tool-actions"><button class="button" data-action="print">Open printable brief</button><button class="secondary" data-action="csv">Export CSV</button><button class="secondary" data-action="json">Export backup</button></div><details><summary>Make an encrypted backup</summary><p>Choose a password. You need it to restore this backup later.</p><label>Backup password <input id="backup-password" type="password" autocomplete="new-password" /></label><button class="secondary" data-action="encrypted" aria-label="Download encrypted backup">Download encrypted backup</button></details>${restoreTools()}</section>`;
+}
+function paid() { return `<section class="paid"><div><p class="eyebrow">One-time unlock</p><h2>Keep the whole notebook</h2><p>For $12, add a personal cover note to printed briefs and support ongoing maintenance. Your log, exports, and safety information remain free.</p></div><div><a class="button" href="${BILLING_BASE}/${PRODUCT_SLUG}/checkout">Buy the $12 unlock</a><label class="license">Have a license? <input id="license-token" type="text" autocomplete="off" placeholder="Paste license token" /><button class="secondary" data-action="license">Verify license</button></label><p id="license-status" class="fine" aria-live="polite">${escapeHtml(licenseMessage)}</p></div></section>`; }
+function landing() { return `<main id="main" tabindex="-1"><section class="hero"><div class="hero-copy"><p class="eyebrow">Private field notes for appointments</p><h1 tabindex="-1">Make your visit history clear</h1><p class="lede">For people whose symptoms change between appointments, keep a short record you can hand to a clinician.</p><div class="hero-actions"><a class="button" href="/demo" data-route>Try it with sample data</a><span>See a finished visit history right away.</span></div><ul class="facts"><li>Stays on this device</li><li>Works after the first visit offline</li><li>$12 one-time unlock; the core log stays free</li></ul></div><figure><img src="/assets/notebook-hero.webp" width="1200" height="800" fetchpriority="high" decoding="async" alt="An open ruled notebook, pencil, and blank note paper on a desk." /><figcaption>Keep only the details you may need later.</figcaption></figure></section><section class="product" aria-label="Care Visit Brief log">${logUi()}</section><section class="how"><div><span>1</span><h2>Mark the day</h2><p>Choose a severity number. Add only tags that matter.</p></div><div><span>2</span><h2>Leave gaps alone</h2><p>No missed-day warning. Blank days stay honestly blank.</p></div><div><span>3</span><h2>Bring the record</h2><p>Print a short chronology before your next visit.</p></div></section><section class="privacy-note"><h2>Notes, not medical advice</h2><p>Care Visit Brief stores entries in this browser. It does not diagnose a condition, interpret symptoms, or contact your clinician.</p><p>For urgent symptoms or immediate danger, contact local emergency services.</p></section>${paid()}</main>`; }
+function appPage() { const heading = demo ? 'Review a sample visit history' : 'Record a clear history'; return `<main id="main" tabindex="-1" class="app-main">${banner()}<section class="app-heading"><p class="eyebrow">${demo ? 'Sample record' : 'Your private notebook'}</p><h1 tabindex="-1">${heading}</h1><p>${demo ? 'This sample shows how sparse notes become a visit handoff.' : 'Keep a small, honest record for your next appointment.'}</p></section>${logUi()}${demo ? '' : paid()}</main>`; }
+function legal(kind: 'privacy' | 'terms') { const privacy = kind === 'privacy'; return `<main id="main" tabindex="-1" class="legal"><h1 tabindex="-1">${privacy ? 'Privacy for your visit notes' : 'Terms for Care Visit Brief'}</h1>${privacy ? `<h2>Your notes stay on your device</h2><p>Entries are stored in your browser’s local database. Care Visit Brief does not send them to a server, use analytics, or sell personal data.</p><h2>Exports are your choice</h2><p>A backup downloads only when you choose it. Encrypted backups use a password in your browser.</p><h2>Optional purchase</h2><p>If you buy the optional unlock, Sociobot receives only the license token needed to check it.</p>` : `<h2>What this tool is for</h2><p>Care Visit Brief helps you record and print personal observations. It is not medical advice, diagnosis, or emergency care.</p><h2>Your responsibility</h2><p>Check your printed brief before sharing it. Keep your device and backup password secure.</p><h2>Optional purchase</h2><p>The $12 unlock is a one-time purchase. Sociobot and Dodo are the merchant of record. Refunds revoke the related license.</p>`}<p><a href="/" data-route>Return to Care Visit Brief</a></p></main>`; }
+function notFound() { return `<main id="main" tabindex="-1" class="legal not-found"><p class="eyebrow">Page not found</p><h1 tabindex="-1">This page is not in the notebook</h1><p>Return to the log and make the next note count.</p><a class="button" href="/" data-route>Return home</a></main>`; }
+
+async function ensureDemo() { await updateEntries(true, current => current.length ? current : sampleEntries); }
+async function replaceEntries(next: Entry[], isDemo = demo) { await saveEntries(isDemo, next); entries = next; notifyChange(isDemo); }
+async function changeEntries(change: (current: Entry[]) => Entry[], isDemo = demo) { entries = await updateEntries(isDemo, current => change(normalizeEntries(current))); notifyChange(isDemo); return entries; }
+function recovery(error: unknown) {
+  setTitle(); const detail = error instanceof Error ? error.message : 'The saved record could not be opened.';
+  app.innerHTML = shell(`<main id="main" tabindex="-1" class="legal recovery"><p class="eyebrow">Recovery</p><h1 tabindex="-1">We could not open this record</h1><p>Export a recovery copy, restore a known-good backup, or remove only this unreadable record and start again.</p><p class="fine">${escapeHtml(detail)}</p><p><button class="secondary" data-action="export-corrupt">Download recovery copy</button></p>${restoreTools('recovery-')}<p><button class="button" data-action="clear-corrupt">Remove unreadable record</button></p></main>`);
+  bind(); document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+}
+async function render(moveFocus = false) {
+  try {
+    setTitle(); demo = route() === '/demo'; if (demo) await ensureDemo();
+    if (isAppRoute()) { const stored = await loadEntries(demo); recoveryRaw = stored; entries = normalizeEntries(stored); } else entries = [];
+    recoveryRaw = null;
+    const content = route() === '/' ? landing() : route() === '/log' || route() === '/demo' ? appPage() : route() === '/privacy' || route() === '/terms' ? legal(route().slice(1) as 'privacy' | 'terms') : notFound();
+    app.innerHTML = shell(content); bind();
+    if (moveFocus) { document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true }); announce(`Opened ${document.title}.`); }
+    const storedLicense = localStorage.getItem(LICENSE_KEY);
+    if (storedLicense && (!licenseVerdict().checked || Date.now() - Number(licenseVerdict().checked) > 86_400_000)) void verifyLicense(storedLicense, false);
+  } catch (error) { recovery(error); }
+}
+function selected(kind: keyof typeof tags) { return [...document.querySelectorAll<HTMLButtonElement>(`[data-tag="${kind}"][aria-pressed="true"]`)].map(button => button.dataset.value!); }
 function chosenSeverity() { return Number(document.querySelector<HTMLButtonElement>('[data-severity][aria-pressed="true"]')?.dataset.severity ?? 2); }
 async function addEntry(form: HTMLFormElement) {
-  const fd = new FormData(form); const entry: Entry = { id: crypto.randomUUID(), date: String(fd.get('date')), severity: chosenSeverity(), symptoms: selected('symptoms'), triggers: selected('triggers'), medications: selected('medications'), note: String(fd.get('note')).trim(), createdAt: new Date().toISOString() };
-  entries.push(entry); await saveEntries(demo, entries); announce('Today’s note saved.'); render();
+  const fd = new FormData(form); const date = String(fd.get('date'));
+  if (date > today()) { announce('Choose today or an earlier date for a visit history note.'); return; }
+  const entry: Entry = { id: crypto.randomUUID(), date, severity: chosenSeverity(), symptoms: selected('symptoms'), triggers: selected('triggers'), medications: selected('medications'), note: String(fd.get('note')).trim(), createdAt: new Date().toISOString() };
+  await changeEntries(current => [...current.filter(item => item.id !== entry.id), entry]); announce('Today’s note saved.'); await render();
 }
-function csv() {
-  const header = ['Date', 'Severity', 'Symptoms', 'Triggers', 'Medicine changes', 'Note'];
-  const q = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
-  download('care-visit-brief.csv', [header.map(q).join(','), ...sorted().map(e => [e.date, e.severity, e.symptoms.join('; '), e.triggers.join('; '), e.medications.join('; '), e.note].map(q).join(','))].join('\n'), 'text/csv'); announce('CSV downloaded.');
-}
-function json() { const data: DataFile = { version: 1, exportedAt: new Date().toISOString(), entries }; download('care-visit-brief-backup.json', JSON.stringify(data, null, 2)); announce('Backup downloaded.'); }
+function csvCell(value: string | number) { const text = String(value); return `"${(/^\s*[=+\-@]/.test(text) ? `'${text}` : text).replaceAll('"', '""')}"`; }
+function csv() { const header = ['Date', 'Severity', 'Symptoms', 'Triggers', 'Medicine changes', 'Note']; download('care-visit-brief.csv', [header.map(csvCell).join(','), ...sorted().map(entry => [entry.date, entry.severity, entry.symptoms.join('; '), entry.triggers.join('; '), entry.medications.join('; '), entry.note].map(csvCell).join(','))].join('\n'), 'text/csv'); announce('CSV downloaded.'); }
+function backupData(): DataFile { return { version: 1, exportedAt: new Date().toISOString(), entries }; }
+function json() { download('care-visit-brief-backup.json', JSON.stringify(backupData(), null, 2)); announce('Backup downloaded.'); }
 async function encrypted() {
-  const input = document.querySelector<HTMLInputElement>('#backup-password')!; if (input.value.length < 8) { announce('Use a backup password with at least 8 characters.'); input.focus(); return; }
-  const salt = crypto.getRandomValues(new Uint8Array(16)); const iv = crypto.getRandomValues(new Uint8Array(12)); const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(input.value), 'PBKDF2', false, ['deriveKey']); const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 10000, hash: 'SHA-256' }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt']); const plain = new TextEncoder().encode(JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), entries })); const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain); const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)); download('care-visit-brief-encrypted.json', JSON.stringify({ version: 1, encrypted: 'AES-GCM', kdf: 'PBKDF2-SHA-256', iterations: 10000, salt: b64(salt), iv: b64(iv), data: b64(new Uint8Array(cipher)) })); input.value = ''; announce('Encrypted backup downloaded.');
+  const input = document.querySelector<HTMLInputElement>('#backup-password')!;
+  if (input.value.length < 12) { announce('Use a backup password with at least 12 characters.'); input.focus(); return; }
+  const salt = crypto.getRandomValues(new Uint8Array(16)); const iv = crypto.getRandomValues(new Uint8Array(12)); const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(input.value), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: KDF_ITERATIONS, hash: 'SHA-256' }, material, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+  const cipher = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(backupData())));
+  download('care-visit-brief-encrypted.json', JSON.stringify({ version: 1, encrypted: 'AES-GCM', kdf: 'PBKDF2-SHA-256', iterations: KDF_ITERATIONS, salt: b64(salt), iv: b64(iv), data: b64(new Uint8Array(cipher)) })); input.value = ''; announce('Encrypted backup downloaded. Keep its password somewhere safe.');
+}
+async function decryptBackup(value: unknown, password: string): Promise<DataFile> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('This is not a Care Visit Brief backup.');
+  const file = value as Record<string, unknown>;
+  // Keep the 10,000-iteration files made by the prior release recoverable,
+  // while every new file uses the stronger current cost.
+  const iterations = typeof file.iterations === 'number' && (file.iterations === KDF_ITERATIONS || file.iterations === 10_000) ? file.iterations : null;
+  if (file.version !== 1 || file.encrypted !== 'AES-GCM' || file.kdf !== 'PBKDF2-SHA-256' || !iterations || typeof file.salt !== 'string' || typeof file.iv !== 'string' || typeof file.data !== 'string') throw new Error('This encrypted backup is not supported.');
+  if (!password) throw new Error('Enter the password for this encrypted backup.');
+  try {
+    const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: bytes(file.salt), iterations, hash: 'SHA-256' }, material, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes(file.iv) }, key, bytes(file.data));
+    return parseBackup(JSON.parse(new TextDecoder().decode(plain)));
+  } catch { throw new Error('The password did not open this encrypted backup. Check it and try again.'); }
 }
 function printBrief() {
-  const from = document.querySelector<HTMLInputElement>('#brief-from')?.value || '0000-01-01'; const to = document.querySelector<HTMLInputElement>('#brief-to')?.value || '9999-12-31'; const list = sorted().filter(e => e.date >= from && e.date <= to); if (!list.length) { announce('No saved notes fall in that date range. Choose another range.'); return; }
-  const rows = list.map(e => `<section><h2>${dateLabel(e.date)} · Severity ${e.severity}/4</h2><p><b>Symptoms:</b> ${escapeHtml(e.symptoms.join(', ') || '—')}</p><p><b>Possible triggers:</b> ${escapeHtml(e.triggers.join(', ') || '—')}</p><p><b>Medicine changes:</b> ${escapeHtml(e.medications.join(', ') || '—')}</p>${e.note ? `<p>${escapeHtml(e.note)}</p>` : ''}</section>`).join(''); const coverText = premium() ? localStorage.getItem('care-visit-brief:cover-note') : ''; const cover = coverText ? `<h2>Personal cover note</h2><p>${escapeHtml(coverText)}</p>` : ''; const win = window.open('', '_blank', 'noopener,noreferrer'); if (!win) { announce('Your browser blocked the print window. Allow pop-ups and try again.'); return; } win.document.write(`<!doctype html><html lang="en"><head><title>Visit brief</title><style>body{font:16px Arial,sans-serif;color:#17222e;max-width:720px;margin:40px auto;padding:0 24px}h1{font:32px Georgia,serif}h2{font-size:18px;border-top:1px solid #87929d;padding-top:14px;margin-top:22px}p{line-height:1.45}</style></head><body><h1>Care Visit Brief</h1><p>Record from ${from === '0000-01-01' ? 'the beginning' : dateLabel(from)} to ${to === '9999-12-31' ? 'today' : dateLabel(to)}. This is a personal record, not medical advice.</p>${cover}${rows}<script>window.onload=()=>window.print()<\/script></body></html>`); win.document.close();
+  const from = document.querySelector<HTMLInputElement>('#brief-from')?.value || '0000-01-01'; const to = document.querySelector<HTMLInputElement>('#brief-to')?.value || today(); const list = sorted().filter(entry => entry.date >= from && entry.date <= to);
+  if (!list.length) { announce('No saved notes fall in that date range. Choose another range.'); return; }
+  const rows = list.map(entry => `<section><h2>${dateLabel(entry.date)} · Severity ${entry.severity}/4</h2><p><b>Symptoms:</b> ${escapeHtml(entry.symptoms.join(', ') || '—')}</p><p><b>Possible triggers:</b> ${escapeHtml(entry.triggers.join(', ') || '—')}</p><p><b>Medicine changes:</b> ${escapeHtml(entry.medications.join(', ') || '—')}</p>${entry.note ? `<p>${escapeHtml(entry.note)}</p>` : ''}</section>`).join('');
+  const coverNote = premium() ? localStorage.getItem(COVER_NOTE_KEY)?.trim() : '';
+  const cover = coverNote ? `<h2>Personal cover note</h2><p>${escapeHtml(coverNote)}</p>` : '';
+  // Chromium returns null for an about:blank popup opened with noopener, so it
+  // produced a blank printable tab even though the popup was allowed.
+  const win = window.open('', '_blank', 'popup,width=760,height=900');
+  if (!win) { announce('Your browser blocked the print window. Allow pop-ups and try again.'); return; }
+  win.document.write(`<!doctype html><html lang="en"><head><title>Visit brief</title><style>body{font:16px Arial,sans-serif;color:#17222e;max-width:720px;margin:40px auto;padding:0 24px}h1{font:32px Georgia,serif}h2{font-size:18px;border-top:1px solid #87929d;padding-top:14px;margin-top:22px}p{line-height:1.45}@media print{button{display:none}}</style></head><body><button onclick="window.print()">Print this brief</button><h1>Care Visit Brief</h1><p>Record from ${from === '0000-01-01' ? 'the beginning' : dateLabel(from)} to ${to === today() ? 'today' : dateLabel(to)}. This is a personal record, not medical advice.</p>${cover}${rows}</body></html>`); win.document.close();
 }
-async function importFile(file: File) { try { const data = parseBackup(JSON.parse(await file.text())); await saveEntries(demo, data.entries); entries = data.entries; announce('Backup restored.'); void render(); } catch { announce('This file is not a complete Care Visit Brief JSON backup. Your existing record was not changed. Choose another file.'); } }
-async function verifyLicense(token?: string) { const value = token || document.querySelector<HTMLInputElement>('#license-token')?.value.trim() || localStorage.getItem('sb_license:care-visit-brief'); if (!value) { announce('Paste a license token first.'); return; } localStorage.setItem('sb_license:care-visit-brief', value); const status = document.querySelector('#license-status'); if (status) status.textContent = 'Checking license…'; try { const response = await fetch(`https://api.sociobot.in/api/v1/products/care-visit-brief/verify?license=${encodeURIComponent(value)}`); const result = await response.json() as { valid: boolean }; localStorage.setItem('sb_license_verdict:care-visit-brief', JSON.stringify({ ...result, checked: Date.now() })); if (status) status.textContent = result.valid ? 'License active.' : 'License is not active. You can buy a new unlock.'; } catch { const old = JSON.parse(localStorage.getItem('sb_license_verdict:care-visit-brief') || '{}'); localStorage.setItem('sb_license_verdict:care-visit-brief', JSON.stringify({ ...old, checked: Date.now() })); if (status) status.textContent = 'Could not check the license now. Your saved verdict will be used when available.'; } render(); }
-function bind() {
-  document.querySelectorAll<HTMLAnchorElement>('[data-route]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); navigate(a.getAttribute('href')!); }));
-  document.querySelector('#entry-form')?.addEventListener('submit', e => { e.preventDefault(); addEntry(e.currentTarget as HTMLFormElement); });
-  document.querySelectorAll<HTMLButtonElement>('[data-severity]').forEach(b => b.addEventListener('click', () => { document.querySelectorAll<HTMLButtonElement>('[data-severity]').forEach(x => { x.classList.toggle('selected', x === b); x.setAttribute('aria-pressed', String(x === b)); }); }));
-  document.querySelectorAll<HTMLButtonElement>('[data-tag]').forEach(b => b.addEventListener('click', () => { const active = b.getAttribute('aria-pressed') === 'true'; b.setAttribute('aria-pressed', String(!active)); b.classList.toggle('selected', !active); }));
-  document.querySelectorAll<HTMLInputElement>('[data-custom]').forEach(input => input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const value = input.value.trim(); const kind = input.dataset.custom as keyof typeof tags; if (value && !tags[kind].includes(value)) { tags[kind].push(value); input.value = ''; const host = document.querySelector(`[data-group="${kind}"]`)!; host.insertAdjacentHTML('beforeend', `<button type="button" class="tag selected" data-tag="${kind}" data-value="${escapeHtml(value)}" aria-pressed="true">${escapeHtml(value)}</button>`); const b = host.lastElementChild as HTMLButtonElement; b.addEventListener('click', () => { const active = b.getAttribute('aria-pressed') === 'true'; b.setAttribute('aria-pressed', String(!active)); b.classList.toggle('selected', !active); }); } } }));
-  document.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(b => b.addEventListener('click', async () => { const action = b.dataset.action; if (action === 'csv') csv(); if (action === 'json') json(); if (action === 'encrypted') await encrypted(); if (action === 'print') printBrief(); if (action === 'delete-entry') { pendingRemoval = entries.find(x => x.id === b.dataset.id) ?? null; entries = entries.filter(x => x.id !== b.dataset.id); await saveEntries(demo, entries); announce('Entry removed. Select Undo to restore it.'); if (removalTimer) window.clearTimeout(removalTimer); removalTimer = window.setTimeout(() => { pendingRemoval = null; void render(); }, 10_000); void render(); } if (action === 'undo-removal' && pendingRemoval) { entries.push(pendingRemoval); await saveEntries(demo, entries); pendingRemoval = null; if (removalTimer) window.clearTimeout(removalTimer); announce('Entry restored.'); void render(); } if (action === 'reset-demo') { await clearEntries(true); await ensureDemo(); announce('Demo reset.'); void render(); } if (action === 'start-real') { await clearEntries(true); navigate('/log'); } if (action === 'license') await verifyLicense(); if (action === 'retry-render') void render(); if (action === 'apply-update') applyUpdate(); }));
-  document.querySelector<HTMLInputElement>('#import-file')?.addEventListener('change', e => { const file = (e.target as HTMLInputElement).files?.[0]; if (file) importFile(file); });
-  document.querySelector<HTMLTextAreaElement>('#cover-note')?.addEventListener('input', e => localStorage.setItem('care-visit-brief:cover-note', (e.target as HTMLTextAreaElement).value));
-  const license = new URLSearchParams(location.search).get('license'); if (license) { history.replaceState({}, '', location.pathname); verifyLicense(license); }
+async function verifyLicense(token?: string, announceResult = true) {
+  const value = token || document.querySelector<HTMLInputElement>('#license-token')?.value.trim() || localStorage.getItem(LICENSE_KEY);
+  if (!value) { if (announceResult) announce('Paste a license token first.'); return; }
+  localStorage.setItem(LICENSE_KEY, value);
+  licenseMessage = 'Checking license…';
+  try {
+    const response = await fetch(`${BILLING_BASE}/${PRODUCT_SLUG}/verify?license=${encodeURIComponent(value)}`);
+    if (!response.ok) throw new Error('License verification was unavailable.');
+    const result = await response.json() as { valid?: boolean; reason?: string; expires_at?: string | null };
+    if (typeof result.valid !== 'boolean') throw new Error('License verification returned an invalid response.');
+    localStorage.setItem(VERDICT_KEY, JSON.stringify({ ...result, checked: Date.now() }));
+    licenseMessage = result.valid ? 'License active.' : 'License is no longer active. You can buy a new unlock.';
+  } catch {
+    const prior = licenseVerdict();
+    localStorage.setItem(VERDICT_KEY, JSON.stringify({ ...prior, checked: Date.now() }));
+    licenseMessage = prior.valid ? 'Could not check the license now. Your saved unlock stays available until it can be checked.' : 'Could not check the license now. Try again when you are online.';
+  }
+  await render();
+  if (announceResult) announce(licenseMessage);
 }
-let updateWorker: ServiceWorker | null = null;
-let reloadForUpdate = false;
-function showUpdate(worker: ServiceWorker) { updateWorker = worker; document.querySelector<HTMLElement>('.update-toast')?.removeAttribute('hidden'); }
+async function importFile(file: File, recovery = false) {
+  try {
+    const parsed: unknown = JSON.parse(await file.text()); const password = document.querySelector<HTMLInputElement>(recovery ? '#recovery-restore-password' : '#restore-password')?.value ?? '';
+    const data = parsed && typeof parsed === 'object' && !Array.isArray(parsed) && (parsed as Record<string, unknown>).encrypted ? await decryptBackup(parsed, password) : parseBackup(parsed);
+    await replaceEntries(data.entries, demo); announce('Backup restored.'); await render();
+  } catch (error) { announce(error instanceof Error ? `${error.message} Your existing record was not changed.` : 'This backup could not be restored. Your existing record was not changed.'); }
+}
+async function removeEntry(id: string) {
+  const removed = entries.find(entry => entry.id === id); if (!removed) return;
+  await changeEntries(current => current.filter(entry => entry.id !== id)); pendingRemovals = [...pendingRemovals.filter(entry => entry.id !== id), removed];
+  if (removalTimer) window.clearTimeout(removalTimer); removalTimer = window.setTimeout(() => { pendingRemovals = []; void render(); }, 10_000);
+  announce('Entry removed. You can undo these removals for 10 seconds.'); await render();
+}
+async function undoRemovals() {
+  const restoring = pendingRemovals; if (!restoring.length) return;
+  await changeEntries(current => { const ids = new Set(current.map(entry => entry.id)); return [...current, ...restoring.filter(entry => !ids.has(entry.id))]; });
+  pendingRemovals = []; if (removalTimer) window.clearTimeout(removalTimer); announce('Removed entries restored.'); await render();
+}
+function toggleTag(button: HTMLButtonElement) { const active = button.getAttribute('aria-pressed') === 'true'; button.setAttribute('aria-pressed', String(!active)); button.classList.toggle('selected', !active); }
+function addCustomTag(input: HTMLInputElement) {
+  const value = input.value.trim(); const kind = input.dataset.custom as keyof typeof tags; if (!value || tags[kind].includes(value)) return;
+  tags[kind].push(value); input.value = ''; const host = document.querySelector(`[data-group="${kind}"]`)!;
+  host.insertAdjacentHTML('beforeend', `<button type="button" class="tag selected" data-tag="${kind}" data-value="${escapeHtml(value)}" aria-pressed="true">${escapeHtml(value)}</button>`); (host.lastElementChild as HTMLButtonElement).addEventListener('click', event => toggleTag(event.currentTarget as HTMLButtonElement));
+}
 function applyUpdate() { if (updateWorker) { reloadForUpdate = true; updateWorker.postMessage({ type: 'SKIP_WAITING' }); } }
+function bind() {
+  document.querySelectorAll<HTMLAnchorElement>('[data-route]').forEach(anchor => anchor.addEventListener('click', event => { event.preventDefault(); navigate(anchor.getAttribute('href')!); }));
+  document.querySelector('#entry-form')?.addEventListener('submit', event => { event.preventDefault(); void addEntry(event.currentTarget as HTMLFormElement); });
+  document.querySelectorAll<HTMLButtonElement>('[data-severity]').forEach(button => button.addEventListener('click', () => document.querySelectorAll<HTMLButtonElement>('[data-severity]').forEach(item => { item.classList.toggle('selected', item === button); item.setAttribute('aria-pressed', String(item === button)); })));
+  document.querySelectorAll<HTMLButtonElement>('[data-tag]').forEach(button => button.addEventListener('click', () => toggleTag(button)));
+  document.querySelectorAll<HTMLInputElement>('[data-custom]').forEach(input => input.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addCustomTag(input); } }));
+  document.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(button => button.addEventListener('click', () => {
+    const action = button.dataset.action;
+    if (action === 'csv') csv(); if (action === 'json') json(); if (action === 'encrypted') void encrypted(); if (action === 'print') printBrief(); if (action === 'delete-entry') void removeEntry(button.dataset.id!); if (action === 'undo-removal') void undoRemovals();
+    if (action === 'reset-demo') void (async () => { await clearEntries(true); await ensureDemo(); notifyChange(true); announce('Demo reset.'); await render(); })();
+    if (action === 'start-real') void (async () => { await clearEntries(true); notifyChange(true); navigate('/log'); })();
+    if (action === 'license') void verifyLicense();
+    if (action === 'export-corrupt') download('care-visit-brief-recovery-copy.json', JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), entries: recoveryRaw }, null, 2));
+    if (action === 'clear-corrupt' && confirm('Remove the unreadable local record? Download a recovery copy first if you may need it.')) void (async () => { await clearEntries(demo); recoveryRaw = null; notifyChange(); announce('Unreadable record removed. You can start a new note.'); await render(true); })();
+    if (action === 'apply-update') applyUpdate();
+  }));
+  document.querySelector<HTMLInputElement>('#import-file')?.addEventListener('change', event => { const file = (event.target as HTMLInputElement).files?.[0]; if (file) void importFile(file); });
+  document.querySelector<HTMLInputElement>('#recovery-import-file')?.addEventListener('change', event => { const file = (event.target as HTMLInputElement).files?.[0]; if (file) void importFile(file, true); });
+  document.querySelector<HTMLTextAreaElement>('#cover-note')?.addEventListener('input', event => localStorage.setItem(COVER_NOTE_KEY, (event.currentTarget as HTMLTextAreaElement).value));
+  const returnedLicense = new URLSearchParams(location.search).get('license');
+  if (returnedLicense) {
+    history.replaceState({}, '', `${location.pathname}${location.hash}`);
+    void verifyLicense(returnedLicense);
+  }
+}
+function showUpdate(worker: ServiceWorker) { updateWorker = worker; updateReady = true; const toast = document.querySelector<HTMLElement>('.update-toast'); if (toast) { toast.hidden = false; } else void render(); }
 function registerServiceWorker() {
   navigator.serviceWorker.register('/sw.js').then(registration => {
     if (registration.waiting) showUpdate(registration.waiting);
-    registration.addEventListener('updatefound', () => {
-      const installing = registration.installing;
-      if (!installing) return;
-      installing.addEventListener('statechange', () => { if (installing.state === 'installed' && navigator.serviceWorker.controller) showUpdate(installing); });
-    });
+    registration.addEventListener('updatefound', () => { const installing = registration.installing; if (installing) installing.addEventListener('statechange', () => { if (installing.state === 'installed' && navigator.serviceWorker.controller) showUpdate(installing); }); });
     navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloadForUpdate) window.location.reload(); });
   }).catch(() => undefined);
 }
-window.addEventListener('popstate', () => void render()); if ('serviceWorker' in navigator) window.addEventListener('load', registerServiceWorker); void render();
+
+changeChannel?.addEventListener('message', event => { if (event.data === namespace()) void render(); });
+window.addEventListener('popstate', () => void render(true));
+if ('serviceWorker' in navigator) window.addEventListener('load', registerServiceWorker);
+void render();

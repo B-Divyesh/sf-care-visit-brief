@@ -13,7 +13,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function validDate(value: string) {
   if (!DATE.test(value)) return false;
   const date = new Date(`${value}T12:00:00Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && value <= new Date().toISOString().slice(0, 10);
 }
 
 function validTimestamp(value: string) {
