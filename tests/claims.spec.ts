@@ -28,13 +28,23 @@ test('@claim:offline-reload opens the demo offline after the first online visit'
     await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
     await expect.poll(() => page.evaluate(async () => {
       const assets = [...document.querySelectorAll<HTMLScriptElement | HTMLLinkElement>('script[src],link[rel="stylesheet"]')]
-        .map(element => element instanceof HTMLScriptElement ? element.src : element.href);
-      return Boolean(await caches.match('/demo')) && (await Promise.all(assets.map(asset => caches.match(asset)))).every(Boolean);
+        .map(element => new URL(element instanceof HTMLScriptElement ? element.src : element.href).pathname);
+      const cacheNames = await caches.keys();
+      const cache = await caches.open(cacheNames.find(name => name.startsWith('care-visit-brief-'))!);
+      const paths = (await cache.keys()).map(request => new URL(request.url).pathname);
+      return paths.includes('/index.html') && assets.every(asset => paths.includes(asset));
     })).toBeTruthy();
+    // Remove HTTP-cache assistance, close the warmed document, and navigate in
+    // a fresh tab. Passing now proves the service worker's canonical shell
+    // fallback and its precached executable assets, not an in-memory page.
+    const session = await context.newCDPSession(page);
+    await session.send('Network.clearBrowserCache');
+    await page.close();
     await context.setOffline(true);
-    await page.goto('http://localhost:4173/demo');
-    await expect(page.getByText('Demo — sample data, nothing is saved')).toBeVisible();
-    await expect(page.getByText('Aug 23, 2026')).toBeVisible();
+    const reopened = await context.newPage();
+    await reopened.goto('http://localhost:4173/demo');
+    await expect(reopened.getByText('Demo — sample data, nothing is saved')).toBeVisible();
+    await expect(reopened.getByText('Aug 23, 2026')).toBeVisible();
   } finally {
     await context.setOffline(false);
     await browser.close();

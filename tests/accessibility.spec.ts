@@ -81,6 +81,8 @@ test('generated service worker versions and precaches executing assets', async (
   });
   expect(worker.source).toMatch(/care-visit-brief-[a-f0-9]{12}/);
   expect(worker.source).toContain("event.data.type === 'SKIP_WAITING'");
+  expect(worker.source).toContain("const NAVIGATION_FALLBACK = '/index.html'");
+  expect(worker.paths).toContain('/index.html');
   expect(worker.paths.some(path => /\/assets\/[^/]+\.js$/.test(path))).toBeTruthy();
   expect(worker.paths.some(path => /\/assets\/[^/]+\.css$/.test(path))).toBeTruthy();
 });
