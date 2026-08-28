@@ -1,0 +1,69 @@
+{
+  "routes": [
+    {
+      "path": "/",
+      "status": 200,
+      "title": "Care Visit Brief — Print a clear symptom timeline",
+      "canonical": "https://care-visit-brief.sociobot.in/",
+      "h1": 1,
+      "violations": 0
+    },
+    {
+      "path": "/log",
+      "status": 200,
+      "title": "Symptom timeline — Care Visit Brief",
+      "canonical": "https://care-visit-brief.sociobot.in/log",
+      "h1": 1,
+      "violations": 0
+    },
+    {
+      "path": "/?demo=1",
+      "status": 200,
+      "title": "Demo — Care Visit Brief",
+      "canonical": "https://care-visit-brief.sociobot.in/?demo=1",
+      "h1": 1,
+      "violations": 0
+    },
+    {
+      "path": "/demo",
+      "status": 200,
+      "title": "Demo — Care Visit Brief",
+      "canonical": "https://care-visit-brief.sociobot.in/?demo=1",
+      "h1": 1,
+      "violations": 0
+    },
+    {
+      "path": "/privacy",
+      "status": 200,
+      "title": "Privacy — Care Visit Brief",
+      "canonical": "https://care-visit-brief.sociobot.in/privacy",
+      "h1": 1,
+      "violations": 0
+    },
+    {
+      "path": "/terms",
+      "status": 200,
+      "title": "Terms — Care Visit Brief",
+      "canonical": "https://care-visit-brief.sociobot.in/terms",
+      "h1": 1,
+      "violations": 0
+    },
+    {
+      "path": "/missing-page",
+      "status": 404,
+      "title": "Page not found — Care Visit Brief",
+      "canonical": "https://care-visit-brief.sociobot.in/404.html",
+      "h1": 1,
+      "violations": 0
+    }
+  ],
+  "demoIsolation": {
+    "realNotes": [
+      "REAL NOTE MUST REMAIN"
+    ]
+  },
+  "demoFirstViewport": {
+    "banner": true,
+    "sampleBottom": 611.796875
+  }
+}

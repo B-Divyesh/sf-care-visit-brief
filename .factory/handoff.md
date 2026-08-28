@@ -3,6 +3,7 @@
 **Status:** complete  
 **Live URL:** https://care-visit-brief.sociobot.in  
 **Date:** 2026-08-28
+**Final repair commit:** `13764a9fb1676efdf413dd82ef7857f216b1eb8c`
 
 ## What changed
 
@@ -33,6 +34,8 @@ npm test
 - Full suite: 40 passed; one deployment-only test intentionally skipped until the live build exists.
 - Controller regression: the exact 41-test single-worker suite completed with 40 passing tests and the intentionally skipped post-deploy claim. `@claim:demo-isolation` now checks the real record after reset and asserts that exit removes the `demo:entries` IndexedDB record; it passed five consecutive isolated runs first.
 - Multi-tab regression: `two tabs merge health notes instead of replacing a stale record` passed ten consecutive isolated runs, then passed in the complete suite.
+- Final clean clone at `13764a9`: all 18 non-live registered claim commands passed independently. The exact 41-test single-worker run had 40 passing tests and one intentional deployment-only skip. After deployment, `LIVE_CLAIM=1 npm test -- --grep @claim:live-deployment --workers=1` passed.
+- Final cold live audit: `/opt/fleet/lib/verify-url.sh` passed (640 ms, no console errors, title/lang/main/h1/alt/button checks). [controller-live-audit.json](polish-1/controller-live-audit.json) records zero serious/critical Axe violations on all seven audited routes, six normal 200 routes, and true 404 behavior. The live demo sample ended at 611.8 px in an 844 px mobile viewport. The production isolation check retained `REAL NOTE MUST REMAIN` and found no `demo:entries` record after exit.
 - Every 18 non-live `.factory/claims.json` command: passed independently.
 - Build: passed and produced `dist/index.html`.
 - JS: 31.27 KB raw / 11.15 KB gzip.
