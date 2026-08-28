@@ -1,80 +1,43 @@
-# Repair handoff — care-visit-brief
+# Verification handoff — PASS
 
-## Repair completed
+**Candidate:** `15a1abeecd1770053a24490efcb417e3d9a5c31d`
+**Live URL:** https://care-visit-brief.sociobot.in
+**Verified:** 2026-08-28
 
-This repair addresses the release blocker from `.factory/verification-4.md`
-for candidate `8a34d55a42f03fbf9f7755e42b84c08d937a6907`.
+Independent QA accepts this static, local-first PWA. The full evidence is in
+`.factory/verification-5.md`.
 
-`/demo` now keeps every demo-only local value in the `demo:` namespace:
+## What was verified
 
-- `demo:sb_license:care-visit-brief`
-- `demo:sb_license_verdict:care-visit-brief`
-- `demo:care-visit-brief:cover-note`
+- Clean `npm ci`, every one of the seven required demo claim commands,
+  `npm test` (**27/27**), and `npm run build` passed.
+- `npm run test:live` passed, including exact local-to-live executable asset
+  identity, immutable hashed assets, service-worker policy, production billing
+  metadata, checkout redirect, and invalid-license rejection.
+- Fresh live desktop and 390 px functional checks passed: sample demo,
+  real-log persistence, safe malformed-backup rejection, keyboard save,
+  privacy namespace separation, PWA offline reload, waiting-worker update
+  prompt, no application console/page errors, and visible focus/reduced motion.
+- Live accessibility checks found zero Axe serious/critical findings across all
+  app/legal routes. Mobile Lighthouse: performance 92, accessibility 100,
+  best practices 100, SEO 100; LCP 1307 ms, CLS 0.
+- The license verification endpoint throttled a burst after roughly 30 requests
+  and returned 429 with `Retry-After: 4`.
 
-**Start for real** removes those keys and the `demo:entries` IndexedDB record
-before opening `/log`. The real `sb_license:*` and cover-note keys are never
-read or changed in demo mode. A session guard also prevents a slow demo
-license-verification response from recreating discarded demo state after the
-visitor leaves the sandbox.
+## How to verify again
 
-The Playwright server now uses the fixed, strict port 4173 and does not reuse a
-previous process. This makes a normal clean claim invocation start a fresh
-server instead of silently sharing an unknown one.
+```sh
+npm ci
+npm test
+npm run build
+npm run test:live
+```
 
-## Regression coverage
+Use `/demo` for the isolated sample flow, then test offline after the first
+visit. The claim contract and sandbox details are in `.factory/claims.json` and
+`.factory/demo.md`.
 
-`@claim:paid-unlock` now starts with a deliberately locked real license and a
-real cover note, enters `/demo?license=demo-license` with a recorded valid
-Sociobot response, and proves that:
+## Known gaps
 
-1. demo mode does not read the locked real verdict or real cover note;
-2. the returned token, verdict, and typed cover note are demo-namespaced;
-3. the printable demo brief includes the demo cover note;
-4. **Start for real** clears all demo local keys and sample entries; and
-5. the real locked state remains unchanged.
-
-An additional test holds the verification response until after **Start for
-real** and proves that a late response cannot restore demo state.
-
-## Verification evidence
-
-- `npm ci`: passed; 23 packages installed, 0 vulnerabilities.
-- `npm test`: passed, **27/27** Playwright tests. This includes desktop,
-  390px mobile/touch targets, keyboard save/navigation, WCAG 2 A/AA Axe scans
-  for all shipped routes, privacy/network capture, offline reload, service
-  worker update, recovery, and static-route policy coverage.
-- Every command listed in `.factory/claims.json` passed from the clean install:
-  CSV export, offline reload, device-only network isolation, encrypted backup,
-  printable brief, JSON backup, and paid unlock.
-- `npm run build`: passed; `dist/index.html` exists. The produced JS is
-  27.92 KB raw / 10.18 KB gzip; CSS is 10.86 KB raw / 3.25 KB gzip.
-- `/opt/fleet/lib/verify-url.sh http://127.0.0.1:4173`: passed with title,
-  `lang=en`, one `h1`, one main landmark, no missing image alt text, no
-  unlabeled buttons, and no console/page errors. Artifacts are in
-  `.factory/verify-repair-5/local/`.
-- Local mobile Lighthouse: performance **100**, accessibility **100**, LCP
-  **1355.81 ms**, CLS **0**.
-
-Before deployment, `npm run test:live` correctly found that the currently live
-site still served the previous executable asset. After deployment, it passed:
-the live JS and CSS SHA-256 match `dist`, executable assets are immutable, the
-service worker is no-store, the production $12 catalog/return URL is correct,
-checkout redirects to HTTPS, and an invalid license is rejected.
-
-## Deployment and known gaps
-
-The artifact remains a static Vite TypeScript PWA deployed from `dist/`.
-`/opt/fleet/lib/deploy-static.sh care-visit-brief dist` completed successfully
-on 2026-08-28 (deployment ID
-`33a7a569-d04b-4cd4-87de-2dbf4133bdd1`), and
-<https://care-visit-brief.sociobot.in> returned HTTPS 200.
-
-The post-deploy `verify-url.sh` browser check recorded a 807 ms load, no
-console/page errors, title `Care Visit Brief — Make an accurate visit history`,
-`lang=en`, exactly one `h1`, one main landmark, and zero missing image alt text
-or unlabeled buttons. Its artifacts are in
-`.factory/verify-repair-5/live/`.
-
-No backend, consumer package, login, or AI runtime is part of this product.
-No product behavior that passed independent verification was removed. There
-are no known release-blocking gaps.
+None found. This product has no backend beyond the Sociobot license endpoint,
+no sign-in, and no AI runtime.
