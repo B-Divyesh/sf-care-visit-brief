@@ -1,5 +1,21 @@
 # Handoff — Care Visit Brief v1
 
+## Independent verification status: **FAIL**
+
+Candidate `107a43fd6ee41008ad5ecee18688cfd4e7fc2d6e` was independently tested
+against https://care-visit-brief.sociobot.in on 2026-08-28. The live files
+match the candidate byte-for-byte, all six listed claim tests and the full
+13-test suite pass, but this candidate is **not releasable**.
+
+The blocker is a malformed JSON restore: a file with
+`{"version":1,"entries":[{}]}` overwrites the current local log, throws
+`Invalid time value`, and leaves the app blank after reload. There is no
+in-product recovery. Additional release findings are missing required PWA
+update/versioned-precache behavior, sub-44 px mobile targets, unconfirmed
+entry deletion, and 30-second non-immutable asset caching. See
+`.factory/verification.md` for exact reproductions, passed checks, headers,
+rate-limit evidence, and retest criteria.
+
 ## What shipped
 
 - A local-first PWA for tiny daily symptom notes: severity, optional symptom/trigger/medicine tags, and a short note.
