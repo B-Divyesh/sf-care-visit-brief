@@ -37,6 +37,7 @@ let licenseVerification: { token: string; isDemo: boolean; demoSession: number; 
 // note that another tab just saved.
 let renderGeneration = 0;
 let scheduledRender: number | undefined;
+let mutationQueue: Promise<void> = Promise.resolve();
 
 function route() { return location.pathname.replace(/\/$/, '') || '/'; }
 function queryDemo() { return route() === '/' && new URLSearchParams(location.search).get('demo') === '1'; }
@@ -97,6 +98,10 @@ function scheduleRender(moveFocus = false) {
   // immediately after another tab has committed a note.
   scheduledRender = window.setTimeout(() => { scheduledRender = undefined; void render(moveFocus); }, 40);
 }
+function queueMutation(work: () => Promise<void>) {
+  mutationQueue = mutationQueue.then(work, work);
+  return mutationQueue;
+}
 function navigate(path: string) { history.pushState({}, '', path); window.scrollTo(0, 0); void render(true); }
 
 function shell(content: string) {
@@ -136,6 +141,10 @@ function recovery(error: unknown) {
   bind(); document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
 }
 async function render(moveFocus = false) {
+  // A direct render after an explicit action supersedes a queued cross-tab
+  // refresh. Without this, the queued refresh can rebuild a form just after a
+  // person has started typing a restore password.
+  if (scheduledRender) { window.clearTimeout(scheduledRender); scheduledRender = undefined; }
   const generation = ++renderGeneration;
   try {
     demo = demoRoute(); setMetadata(); if (demo) await ensureDemo();
@@ -260,22 +269,22 @@ function addCustomTag(input: HTMLInputElement) {
 function applyUpdate() { if (updateWorker) { reloadForUpdate = true; updateWorker.postMessage({ type: 'SKIP_WAITING' }); } }
 function bind() {
   document.querySelectorAll<HTMLAnchorElement>('[data-route]').forEach(anchor => anchor.addEventListener('click', event => { event.preventDefault(); navigate(anchor.getAttribute('href')!); }));
-  document.querySelector('#entry-form')?.addEventListener('submit', event => { event.preventDefault(); void addEntry(event.currentTarget as HTMLFormElement); });
+  document.querySelector('#entry-form')?.addEventListener('submit', event => { event.preventDefault(); void queueMutation(() => addEntry(event.currentTarget as HTMLFormElement)); });
   document.querySelectorAll<HTMLButtonElement>('[data-severity]').forEach(button => button.addEventListener('click', () => document.querySelectorAll<HTMLButtonElement>('[data-severity]').forEach(item => { item.classList.toggle('selected', item === button); item.setAttribute('aria-pressed', String(item === button)); })));
   document.querySelectorAll<HTMLButtonElement>('[data-tag]').forEach(button => button.addEventListener('click', () => toggleTag(button)));
   document.querySelectorAll<HTMLInputElement>('[data-custom]').forEach(input => input.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); addCustomTag(input); } }));
   document.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(button => button.addEventListener('click', () => {
     const action = button.dataset.action;
-    if (action === 'csv') csv(); if (action === 'json') json(); if (action === 'encrypted') void encrypted(); if (action === 'print') printBrief(); if (action === 'delete-entry') void removeEntry(button.dataset.id!); if (action === 'undo-removal') void undoRemovals();
-    if (action === 'reset-demo') void (async () => { await clearEntries(true); await ensureDemo(); notifyChange(true); announce('Demo reset.'); await render(); })();
-    if (action === 'start-real') void (async () => { demoSession += 1; clearDemoLocalState(); await clearEntries(true); notifyChange(true); navigate('/log'); })();
+    if (action === 'csv') csv(); if (action === 'json') json(); if (action === 'encrypted') void encrypted(); if (action === 'print') printBrief(); if (action === 'delete-entry') void queueMutation(() => removeEntry(button.dataset.id!)); if (action === 'undo-removal') void queueMutation(undoRemovals);
+    if (action === 'reset-demo') void queueMutation(async () => { await clearEntries(true); await ensureDemo(); notifyChange(true); announce('Demo reset.'); await render(); });
+    if (action === 'start-real') void queueMutation(async () => { demoSession += 1; clearDemoLocalState(); await clearEntries(true); notifyChange(true); navigate('/log'); });
     if (action === 'license') void verifyLicense();
     if (action === 'export-corrupt') download('care-visit-brief-recovery-copy.json', JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), entries: recoveryRaw }, null, 2));
-    if (action === 'clear-corrupt' && confirm('Remove the unreadable local timeline? Download a recovery copy first if you may need it.')) void (async () => { await clearEntries(demo); recoveryRaw = null; notifyChange(); announce('Unreadable timeline removed. You can start a new note.'); await render(true); })();
+    if (action === 'clear-corrupt' && confirm('Remove the unreadable local timeline? Download a recovery copy first if you may need it.')) void queueMutation(async () => { await clearEntries(demo); recoveryRaw = null; notifyChange(); announce('Unreadable timeline removed. You can start a new note.'); await render(true); });
     if (action === 'apply-update') applyUpdate();
   }));
-  document.querySelector<HTMLInputElement>('#import-file')?.addEventListener('change', event => { const file = (event.target as HTMLInputElement).files?.[0]; if (file) void importFile(file); });
-  document.querySelector<HTMLInputElement>('#recovery-import-file')?.addEventListener('change', event => { const file = (event.target as HTMLInputElement).files?.[0]; if (file) void importFile(file, true); });
+  document.querySelector<HTMLInputElement>('#import-file')?.addEventListener('change', event => { const file = (event.target as HTMLInputElement).files?.[0]; if (file) void queueMutation(() => importFile(file)); });
+  document.querySelector<HTMLInputElement>('#recovery-import-file')?.addEventListener('change', event => { const file = (event.target as HTMLInputElement).files?.[0]; if (file) void queueMutation(() => importFile(file, true)); });
   document.querySelector<HTMLTextAreaElement>('#cover-note')?.addEventListener('input', event => localStorage.setItem(coverNoteKey(), (event.currentTarget as HTMLTextAreaElement).value));
   const query = new URLSearchParams(location.search); const returnedLicense = query.get('license');
   if (returnedLicense) {

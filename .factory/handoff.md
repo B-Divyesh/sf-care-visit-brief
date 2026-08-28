@@ -16,7 +16,7 @@
 - Standardized **note**, **timeline**, **visit brief**, and **medicine changes**. Rewrote the first screen, paid heading, actions, README, and legal copy.
 - Preserved the handwritten lab-notebook identity. The new preview and print sheet use the existing paper, ink, oxide rule, serif type, and clipped-note grammar.
 - Updated the catalog description to: “Turn daily symptom notes into a private, printable visit brief for your next appointment.”
-- Tightened the controller-requested demo boundary: Reset demo and Start my private timeline now delete only `demo:entries`; the claim regression proves `REAL NOTE MUST REMAIN` survives both actions.
+- Tightened the controller-requested demo boundary: Reset demo and Start my private timeline now delete only `demo:entries`; queued demo mutations prevent reset from racing a save, and the claim regression proves `REAL NOTE MUST REMAIN` survives both actions.
 - Fixed a cross-tab rendering race: concurrent writes already merged safely, and notifications now coalesce before a fresh render so both saved notes stay visible in each open timeline.
 
 No runtime AI was added because note capture and exact printing must remain deterministic, private, and offline. No new generated image was needed; existing asset provenance remains in `.factory/design.md`.
@@ -31,7 +31,7 @@ npm test
 ```
 
 - Full suite: 40 passed; one deployment-only test intentionally skipped until the live build exists.
-- Controller regression: the exact 41-test single-worker suite completed with 40 passing tests and the intentionally skipped post-deploy claim. `@claim:demo-isolation` now checks the real record after reset and asserts that exit removes the `demo:entries` IndexedDB record.
+- Controller regression: the exact 41-test single-worker suite completed with 40 passing tests and the intentionally skipped post-deploy claim. `@claim:demo-isolation` now checks the real record after reset and asserts that exit removes the `demo:entries` IndexedDB record; it passed five consecutive isolated runs first.
 - Multi-tab regression: `two tabs merge health notes instead of replacing a stale record` passed ten consecutive isolated runs, then passed in the complete suite.
 - Every 18 non-live `.factory/claims.json` command: passed independently.
 - Build: passed and produced `dist/index.html`.

@@ -224,10 +224,13 @@ test('@claim:demo-isolation resets and discards demo data without changing the r
   await page.goto('/log');
   await page.getByLabel('What changed? optional').fill('REAL NOTE MUST REMAIN');
   await page.getByRole('button', { name: 'Save today’s note' }).click();
+  await expect(page.getByText('REAL NOTE MUST REMAIN')).toBeVisible();
   await page.goto('/?demo=1');
   await page.getByLabel('What changed? optional').fill('DEMO-ONLY NOTE');
   await page.getByRole('button', { name: 'Save today’s note' }).click();
+  await expect(page.locator('.entry-card').filter({ hasText: 'DEMO-ONLY NOTE' })).toBeVisible();
   await page.getByRole('button', { name: 'Reset demo' }).click();
+  await expect(page.locator('.live')).toHaveText('Demo reset.');
   await expect(page.locator('.entry-card')).toHaveCount(5);
   await expect(page.getByText('DEMO-ONLY NOTE')).toHaveCount(0);
   // Reset replaces only the sample namespace. Check the real record before
