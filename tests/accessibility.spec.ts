@@ -170,6 +170,34 @@ test('SPA navigation focuses and announces the new route heading', async ({ page
   await expect(page.locator('.live')).toContainText('Opened Demo');
 });
 
+test('browser Back and Forward restore each route scroll position and heading focus', async ({ page }) => {
+  const followRoute = async (href: string) => page.locator(`a[data-route][href="${href}"]`).first().evaluate((link: HTMLAnchorElement) => link.click());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Turn symptom notes into a visit brief' })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 900));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(890);
+
+  await followRoute('/log');
+  await expect(page.getByRole('heading', { name: 'Start a private symptom timeline' })).toBeFocused();
+  await page.evaluate(() => window.scrollTo(0, 320));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(310);
+
+  await followRoute('/privacy');
+  await expect(page.getByRole('heading', { name: 'Privacy for your visit notes' })).toBeFocused();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Start a private symptom timeline' })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(310);
+
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Turn symptom notes into a visit brief' })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(890);
+
+  await page.goForward();
+  await expect(page.getByRole('heading', { name: 'Start a private symptom timeline' })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(310);
+});
+
 test('route metadata follows deep links and browser history', async ({ page }) => {
   const expected = {
     '/': ['Care Visit Brief — Print a clear symptom timeline', 'https://care-visit-brief.sociobot.in/'],

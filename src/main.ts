@@ -39,6 +39,8 @@ let renderGeneration = 0;
 let scheduledRender: number | undefined;
 let mutationQueue: Promise<void> = Promise.resolve();
 
+type ScrollState = { scrollX?: number; scrollY?: number };
+
 function route() { return location.pathname.replace(/\/$/, '') || '/'; }
 function queryDemo() { return route() === '/' && new URLSearchParams(location.search).get('demo') === '1'; }
 function demoRoute() { return route() === '/demo' || queryDemo(); }
@@ -102,7 +104,37 @@ function queueMutation(work: () => Promise<void>) {
   mutationQueue = mutationQueue.then(work, work);
   return mutationQueue;
 }
-function navigate(path: string) { history.pushState({}, '', path); window.scrollTo(0, 0); void render(true); }
+function stateWithScroll(): ScrollState {
+  const current = history.state;
+  return {
+    ...(current && typeof current === 'object' ? current as ScrollState : {}),
+    scrollX: window.scrollX,
+    scrollY: window.scrollY
+  };
+}
+function scrollFromState(state: unknown) {
+  const saved = state && typeof state === 'object' ? state as ScrollState : {};
+  return {
+    x: typeof saved.scrollX === 'number' && saved.scrollX >= 0 ? saved.scrollX : 0,
+    y: typeof saved.scrollY === 'number' && saved.scrollY >= 0 ? saved.scrollY : 0
+  };
+}
+function navigate(path: string) {
+  // Keep the reader's exact place with the entry they are leaving. Browser
+  // restoration is disabled below so it cannot race the fresh SPA render.
+  history.replaceState(stateWithScroll(), '', location.href);
+  history.pushState({ scrollX: 0, scrollY: 0 } satisfies ScrollState, '', path);
+  window.scrollTo(0, 0);
+  void render(true);
+}
+async function restoreHistoryPosition(state: unknown) {
+  await render(true);
+  // The heading receives focus during render with preventScroll. Restore only
+  // after the new route exists so Back and Forward keep both focus and place.
+  await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  const { x, y } = scrollFromState(state);
+  window.scrollTo(x, y);
+}
 
 function shell(content: string) {
   const undo = pendingRemovals.length ? `<aside class="undo-toast" role="status"><span>${pendingRemovals.length === 1 ? `Note from ${dateLabel(pendingRemovals[0].date)} removed.` : `${pendingRemovals.length} notes removed.`}</span><button class="secondary" data-action="undo-removal">Undo removals</button></aside>` : '';
@@ -306,6 +338,7 @@ window.addEventListener('storage', event => {
   if (event.key !== CHANGE_KEY || !event.newValue) return;
   try { if ((JSON.parse(event.newValue) as { scope?: string }).scope === namespace()) scheduleRender(); } catch { /* Ignore a malformed notification. */ }
 });
-window.addEventListener('popstate', () => void render(true));
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+window.addEventListener('popstate', event => void restoreHistoryPosition(event.state));
 if ('serviceWorker' in navigator) window.addEventListener('load', registerServiceWorker);
 void render();
