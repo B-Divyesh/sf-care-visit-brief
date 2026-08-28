@@ -1,0 +1,50 @@
+[
+  {
+    "path": "/",
+    "status": 200,
+    "title": "Care Visit Brief — Print a clear symptom timeline",
+    "canonical": "https://care-visit-brief.sociobot.in/",
+    "seriousOrCritical": 0
+  },
+  {
+    "path": "/log",
+    "status": 200,
+    "title": "Symptom timeline — Care Visit Brief",
+    "canonical": "https://care-visit-brief.sociobot.in/log",
+    "seriousOrCritical": 0
+  },
+  {
+    "path": "/?demo=1",
+    "status": 200,
+    "title": "Demo — Care Visit Brief",
+    "canonical": "https://care-visit-brief.sociobot.in/?demo=1",
+    "seriousOrCritical": 0
+  },
+  {
+    "path": "/privacy",
+    "status": 200,
+    "title": "Privacy — Care Visit Brief",
+    "canonical": "https://care-visit-brief.sociobot.in/privacy",
+    "seriousOrCritical": 0
+  },
+  {
+    "path": "/terms",
+    "status": 200,
+    "title": "Terms — Care Visit Brief",
+    "canonical": "https://care-visit-brief.sociobot.in/terms",
+    "seriousOrCritical": 0
+  },
+  {
+    "path": "/missing-page",
+    "status": 404,
+    "title": "Page not found — Care Visit Brief",
+    "canonical": "https://care-visit-brief.sociobot.in/404.html",
+    "seriousOrCritical": 0
+  },
+  {
+    "path": "print-sample",
+    "pages": 1,
+    "sampleBottom": 611.796875,
+    "viewportHeight": 844
+  }
+]

@@ -47,12 +47,18 @@ Evidence:
 - Local verifier: `.factory/polish-1/local-verify/verify.json`
 - Local Lighthouse: `.factory/polish-1/local-lighthouse.json`
 - Post-deploy verifier: `.factory/polish-1/live-verify/verify.json`
+- Cold route and Axe audit: `.factory/polish-1/live-a11y.json`
+- Cold isolation, focus, privacy, and offline audit: `.factory/polish-1/live-flow.json`
 
 After deployment, the deployment-only claim is run from a second clean clone:
 
 ```sh
 LIVE_CLAIM=1 npm test -- --grep @claim:live-deployment
 ```
+
+Result: 1 passed from a new clone of pushed `main`. The script matched both live hashed assets to `dist/`, confirmed the production USD 12 catalog record, checked checkout and invalid-license behavior, and verified every route plus the real 404.
+
+The final cold browser audit also passed. The live sample appears at 612px in the 844px viewport. Its PDF has one page. All five app/legal routes return 200, and `/missing-page` returns 404. All six pages have zero serious or critical Axe violations. Demo reset, exit isolation, browser Back focus, same-origin privacy, and offline reload passed.
 
 ## Deploy
 
@@ -65,4 +71,4 @@ npm run build
 
 ## Known gaps
 
-None. All F-1-1 through F-1-25 findings are closed and mapped in `.factory/polish-1.md`.
+None. All F-1-1 through F-1-25 findings are closed, deployed, and mapped in `.factory/polish-1.md`.

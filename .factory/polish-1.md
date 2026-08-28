@@ -1,7 +1,7 @@
 # Polish round 1 — finding closure
 
 Candidate base: `de0662bf54b05faf1d24cc15303c5a9d3afa70e4`  
-Repair commit: `3a08cbf` plus this evidence commit  
+Repair commits: `3a08cbf`, `65fdd14`, and the final live-evidence commit  
 Live URL: https://care-visit-brief.sociobot.in  
 Date: 2026-08-28
 
@@ -41,3 +41,7 @@ Every finding in `.factory/review-1.md` is mapped below. Local screenshots are i
 - Local URL verifier: `.factory/polish-1/local-verify/verify.json`; no console errors, one `h1`, `lang=en`, one main, no missing alt or unnamed button.
 - Local Lighthouse: `.factory/polish-1/local-lighthouse.json`; Performance 100, Accessibility 100, Best Practices 100, SEO 100; LCP 1.36s; CLS 0.
 - Build budget: JS 31.27 KB raw / 11.15 KB gzip; CSS 11.61 KB raw / 3.38 KB gzip; notebook hero 50 KB.
+- Clean-clone deployment claim: `LIVE_CLAIM=1 npm test -- --grep @claim:live-deployment` passed against production.
+- Cold live route/Axe audit: `.factory/polish-1/live-a11y.json`; five 200 routes, one true 404, correct titles/canonicals, and zero serious/critical violations.
+- Cold live interaction audit: `.factory/polish-1/live-flow.json`; six same-origin requests, empty demo keys after exit, real note preserved, reset restored five notes, Back focused the `h1`, and offline sample reload passed.
+- Live verifier: `.factory/polish-1/live-verify/verify.json`; no console errors or semantic failures.

@@ -1,0 +1,14 @@
+{
+  "url": "https://care-visit-brief.sociobot.in/?demo=1",
+  "loadMs": 1229,
+  "errors": [],
+  "a11y": {
+    "title": "Demo — Care Visit Brief",
+    "lang": "en",
+    "h1": 1,
+    "main": true,
+    "imgsMissingAlt": 0,
+    "buttonsUnlabeled": 0,
+    "textLength": 2139
+  }
+}
