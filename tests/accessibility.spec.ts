@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
-for (const path of ['/', '/log', '/demo', '/privacy', '/terms', '/missing-page']) {
+for (const path of ['/', '/log', '/?demo=1', '/demo', '/privacy', '/terms', '/missing-page']) {
   test(`accessible shell ${path}`, async ({ page }) => {
     const errors: string[] = [];
     page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -10,7 +10,7 @@ for (const path of ['/', '/log', '/demo', '/privacy', '/terms', '/missing-page']
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.locator('main')).toHaveCount(1);
     await expect(page.locator('h1')).toHaveCount(1);
-    if (path === '/demo') await expect(page.locator('.entry-card').first()).toBeVisible();
+    if (path.includes('demo')) await expect(page.locator('.entry-card').first()).toBeVisible();
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(results.violations.filter(v => ['critical', 'serious'].includes(v.impact ?? ''))).toEqual([]);
     expect(errors).toEqual([]);
@@ -18,7 +18,7 @@ for (const path of ['/', '/log', '/demo', '/privacy', '/terms', '/missing-page']
 }
 
 test('each SPA route exposes one skip link to the main landmark', async ({ page }) => {
-  for (const path of ['/', '/log', '/demo', '/privacy', '/terms', '/missing-page']) {
+  for (const path of ['/', '/log', '/?demo=1', '/demo', '/privacy', '/terms', '/missing-page']) {
     await page.goto(path);
     const skipLink = page.getByRole('link', { name: 'Skip to content' });
     await expect(skipLink).toHaveCount(1);
@@ -45,9 +45,9 @@ test('invalid restore leaves the existing record intact after reload', async ({ 
     mimeType: 'application/json',
     buffer: Buffer.from('{"version":1,"entries":[{}]}')
   });
-  await expect(page.locator('.live')).toContainText('Your existing record was not changed.');
+  await expect(page.locator('.live')).toContainText('Your existing timeline was not changed.');
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Record a clear history' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Start a private symptom timeline' })).toBeVisible();
   await expect(page.getByText('Existing record stays safe.')).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -57,12 +57,12 @@ test('removed health records can be undone', async ({ page }) => {
   const cards = page.locator('.entry-card');
   await expect(cards.first()).toBeVisible();
   const before = await cards.count();
-  await cards.first().getByRole('button', { name: 'Remove entry' }).click();
+  await cards.first().getByRole('button', { name: 'Remove note' }).click();
   await page.waitForTimeout(300);
   await expect(page.locator('.undo-toast')).toHaveCount(1);
   await page.locator('.undo-toast [data-action="undo-removal"]').click();
   await expect(cards).toHaveCount(before, { timeout: 1_000 });
-  await expect(page.locator('.live')).toHaveText('Removed entries restored.');
+  await expect(page.locator('.live')).toHaveText('Removed notes restored.');
 });
 
 test('repeated removals can all be undone', async ({ page }) => {
@@ -70,9 +70,9 @@ test('repeated removals can all be undone', async ({ page }) => {
   const cards = page.locator('.entry-card');
   await expect(cards.first()).toBeVisible();
   const before = await cards.count();
-  await cards.nth(0).getByRole('button', { name: 'Remove entry' }).click();
-  await page.locator('.entry-card').nth(0).getByRole('button', { name: 'Remove entry' }).click();
-  await expect(page.locator('.undo-toast')).toContainText('2 entries removed.');
+  await cards.nth(0).getByRole('button', { name: 'Remove note' }).click();
+  await page.locator('.entry-card').nth(0).getByRole('button', { name: 'Remove note' }).click();
+  await expect(page.locator('.undo-toast')).toContainText('2 notes removed.');
   await page.getByRole('button', { name: 'Undo removals' }).click();
   await expect(cards).toHaveCount(before);
 });
@@ -114,14 +114,14 @@ test('corrupt stored records can be exported, restored, or removed in place', as
     });
   });
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'We could not open this record' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'We could not open this timeline' })).toBeVisible();
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download recovery copy' }).click();
   expect((await download).suggestedFilename()).toBe('care-visit-brief-recovery-copy.json');
   await page.getByLabel('Restore from a backup').setInputFiles({
     name: 'safe.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify({ version: 1, exportedAt: '2026-08-28T12:00:00.000Z', entries: [] }))
   });
-  await expect(page.getByRole('heading', { name: 'Record a clear history' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Start a private symptom timeline' })).toBeVisible();
 });
 
 test('390px controls meet the 44px touch target and do not cause horizontal overflow', async ({ page }) => {
@@ -166,8 +166,32 @@ test('future dates and CSV formulas are made safe', async ({ page }) => {
 test('SPA navigation focuses and announces the new route heading', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Demo' }).click();
-  await expect(page.getByRole('heading', { name: 'Review a sample visit history' })).toBeFocused();
+  await expect(page.getByRole('heading', { name: 'Review a filled sample timeline' })).toBeFocused();
   await expect(page.locator('.live')).toContainText('Opened Demo');
+});
+
+test('route metadata follows deep links and browser history', async ({ page }) => {
+  const expected = {
+    '/': ['Care Visit Brief — Print a clear symptom timeline', 'https://care-visit-brief.sociobot.in/'],
+    '/log': ['Symptom timeline — Care Visit Brief', 'https://care-visit-brief.sociobot.in/log'],
+    '/?demo=1': ['Demo — Care Visit Brief', 'https://care-visit-brief.sociobot.in/?demo=1'],
+    '/privacy': ['Privacy — Care Visit Brief', 'https://care-visit-brief.sociobot.in/privacy'],
+    '/terms': ['Terms — Care Visit Brief', 'https://care-visit-brief.sociobot.in/terms']
+  } as const;
+  for (const [path, [title, canonical]] of Object.entries(expected)) {
+    await page.goto(path);
+    await expect(page).toHaveTitle(title);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', canonical);
+    await expect(page.locator('meta[property="og:title"]')).toHaveAttribute('content', title);
+    await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', canonical);
+    await expect(page.locator('meta[name="twitter:title"]')).toHaveAttribute('content', title);
+    await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content', '');
+  }
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Privacy' }).first().click();
+  await page.goBack();
+  await expect(page).toHaveTitle(expected['/'][0]);
+  await expect(page.getByRole('heading', { name: 'Turn symptom notes into a visit brief' })).toBeFocused();
 });
 
 test('a waiting service-worker update remains available after SPA navigation', async ({ page }) => {

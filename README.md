@@ -1,18 +1,21 @@
 # Care Visit Brief
 
-Care Visit Brief is a private daily symptom log for people who need a short, accurate history at a clinical appointment. It records a severity mark, optional tags, and a short note, then makes a printable visit brief.
+Care Visit Brief turns daily symptom notes into a printable visit brief. It is for people whose symptoms change between appointments.
 
-Entries stay in the browser on the device. The app works offline after the first visit. CSV and JSON exports keep the record portable. This tool does not diagnose symptoms or recommend treatment.
+A note saves a severity number, symptom tags, possible triggers, medicine changes, and your words. Notes stay in this browser. The app uses no analytics. It works offline after your first visit.
+
+The app does not diagnose, interpret symptoms, recommend treatment, or contact a clinician.
 
 ## Use it
 
-- Open `/log` to start a real private log.
-- Open `/demo` to try the isolated sample. Nothing in demo mode reaches the real log.
-- Use **Open printable brief** before an appointment.
-- Use **Export backup** or **Download encrypted backup** to keep a copy. Use
-  **Restore from a backup** and the same password to restore an encrypted copy.
-  Encrypted backups made by the earlier release also restore; download a fresh
-  one afterward for stronger password protection.
+- Open `/?demo=1` to see five sample notes without changing your real timeline.
+- Use **Reset demo** to restore the sample. Use **Start my private timeline** to discard it.
+- Open `/log` to start your private timeline. Days without a note stay blank.
+- Use **Open one-page visit brief** before an appointment. Shorten the date range if the notes need another page.
+- Use **Export CSV** for a table. Use **Export backup** for a versioned JSON copy.
+- Use **Download encrypted backup** for a password-protected copy. Restore it with the same password.
+
+New encrypted backups use 600,000 PBKDF2 iterations. Backups from the earlier 10,000-iteration release also restore. Make a new backup afterward.
 
 ## Develop and verify
 
@@ -24,23 +27,26 @@ npm run build
 npm run test:live
 ```
 
-The deploy output is `dist/`, with `index.html` at its root. Deploy `dist/` as
-a static site with the included `staticwebapp.config.json`; it supplies the SPA
-fallback, immutable hashed-asset caching, security headers, and the real 404
-response. The claim tests and their demo instructions are in
-`.factory/claims.json` and `.factory/demo.md`. Run `test:live` after deployment;
-it verifies the production billing route, response policy, and deployed asset
-identity against the local `dist/` build.
+The production build creates `dist/index.html`. Deploy the `dist/` folder as a static site.
 
-## Optional one-time unlock
+The included config serves app routes and the custom 404 page. It also caches versioned assets and adds security headers.
 
-The core log and all exports are free. A $12 one-time unlock adds a personal
-cover note to printed briefs and supports maintenance. Sociobot and Dodo handle
-checkout and license verification; the app sends only the license token to
-verify it. You can paste a license token on the product page to restore it on
-another device.
+The claim registry is [.factory/claims.json](.factory/claims.json). Each product claim names its exact test command and clean sandbox.
+
+After deployment, `npm run test:live` checks billing, response policy, route metadata, the 404 page, and deployed asset identity.
+
+## Optional one-time purchase
+
+Saving, restoring, exports, print tools, and safety information need no license. Pay $12 USD once to add a printed cover note.
+
+Sociobot and Dodo are the merchant of record. License restoration sends only the entered token to Sociobot.
+
+Paste the same token on another device to restore the cover-note feature. Your health notes do not move with the token.
 
 ## Privacy and terms
 
-Read `/privacy` for local storage and optional license verification. Read
-`/terms` for the medical disclaimer and purchase terms.
+Read the [privacy page](https://care-visit-brief.sociobot.in/privacy) for local storage and license checks. Read the [terms](https://care-visit-brief.sociobot.in/terms) for safety and purchase terms.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

@@ -1,7 +1,7 @@
 {
   "name": "Care Visit Brief",
   "short_name": "Visit Brief",
-  "description": "A private daily symptom log for a clearer visit history.",
+  "description": "A private symptom timeline that makes a printable visit brief.",
   "start_url": "/?v=1",
   "display": "standalone",
   "background_color": "#f7f1e5",

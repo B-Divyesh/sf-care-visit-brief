@@ -1,0 +1,8 @@
+{
+  "slug": "care-visit-brief",
+  "price_minor": 1200,
+  "currency": "USD",
+  "purchase_model": "one_time",
+  "checkout_url": "https://api.sociobot.in/api/v1/products/care-visit-brief/checkout",
+  "merchant_of_record": ["Sociobot", "Dodo"]
+}

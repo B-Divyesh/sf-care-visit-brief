@@ -1,43 +1,84 @@
-# Landing copy audit
+# Copy audit — polish round 1
 
-All landing sentences and short interface statements were read aloud on 2026-08-28. No banned terms appear. Word counts exclude decorative labels.
+Audited 2026-08-28. Counts treat hyphenated terms and numbers as one word. No sentence exceeds 22 words. No banned marketing word appears.
+
+## Landing and product copy
 
 | Copy | Words | Result |
 |---|---:|---|
-| Private field notes for appointments | 5 | Pass |
-| Make your visit history clear | 5 | Pass |
-| For people whose symptoms change between appointments, keep a short record you can hand to a clinician. | 17 | Pass |
+| Private symptom notes for appointments | 5 | Pass |
+| Turn symptom notes into a visit brief | 7 | Pass |
+| For people with changing symptoms, build a short timeline to print for a clinician. | 13 | Pass |
 | Try it with sample data | 5 | Pass |
-| See a finished visit history right away. | 8 | Pass |
-| Stays on this device | 5 | Pass |
-| Works after the first visit offline | 7 | Pass |
-| $12 one-time unlock; the core log stays free | 8 | Pass |
-| Keep only the details you may need later. | 9 | Pass |
+| Open a filled sample timeline. | 5 | Pass |
+| Your notes stay untouched. | 4 | Pass |
+| Notes stay on this device | 5 | Pass |
+| Works offline after your first visit | 6 | Pass |
+| $12 USD once; the timeline stays free | 7 | Pass |
+| Keep only the details you may need later. | 8 | Pass |
 | Record what changed | 3 | Pass |
-| A few marks are enough. | 5 | Pass |
-| You can add more only when it helps. | 9 | Pass |
-| Days without a note stay blank. | 7 | Pass |
-| That is useful context too. | 5 | Pass |
-| Choose a date range. | 5 | Pass |
-| The print view uses only the notes you saved. | 10 | Pass |
-| Choose a severity number. | 5 | Pass |
+| Save a severity number, optional tags, and a short note. | 10 | Pass |
+| How hard was it today? | 5 | Pass |
+| Save today’s note | 3 | Pass |
+| This timeline does not diagnose, interpret symptoms, recommend treatment, or contact a clinician. | 13 | Pass |
+| Saved notes | 2 | Pass |
+| Days without a note stay blank. | 6 | Pass |
+| Your notes will appear here. | 5 | Pass |
+| Start with a severity number. | 5 | Pass |
+| You do not need to fill every field. | 8 | Pass |
+| Make a visit brief | 4 | Pass |
+| Choose a date range. | 4 | Pass |
+| The print view uses only your saved notes. | 8 | Pass |
+| If the notes need more than one page, choose a shorter range. | 12 | Pass |
+| Open one-page visit brief | 4 | Pass |
+| Choose a password. | 3 | Pass |
+| You need it to restore this backup later. | 8 | Pass |
+| Mark the day | 3 | Pass |
+| Choose a severity number. | 4 | Pass |
 | Add only tags that matter. | 5 | Pass |
-| No missed-day warning. | 3 | Pass |
-| Blank days stay honestly blank. | 5 | Pass |
-| Print a short chronology before your next visit. | 9 | Pass |
-| Care Visit Brief stores entries in this browser. | 8 | Pass |
-| It does not diagnose a condition, interpret symptoms, or contact your clinician. | 12 | Pass |
+| Leave gaps alone | 3 | Pass |
+| No missed-day warning appears. | 4 | Pass |
+| Blank days remain blank. | 4 | Pass |
+| Bring the visit brief | 4 | Pass |
+| Print a short chronology before your next visit. | 8 | Pass |
+| Notes, not medical advice | 4 | Pass |
+| Care Visit Brief stores notes in this browser. | 8 | Pass |
+| It does not diagnose, interpret symptoms, recommend treatment, or contact a clinician. | 12 | Pass |
 | For urgent symptoms or immediate danger, contact local emergency services. | 10 | Pass |
-| For $12, add a personal cover note to printed briefs and support ongoing maintenance. | 14 | Pass |
-| Your log, exports, and safety information remain free. | 8 | Pass |
+| Add a cover note to printed briefs | 7 | Pass |
+| Pay $12 USD once to add a personal cover note. | 10 | Pass |
+| Your timeline, exports, print tools, and safety information stay free. | 10 | Pass |
+| Restore my unlock | 3 | Pass |
+| Care Visit Brief turns daily notes into a printable visit brief. | 10 | Pass |
+| Illustration generated for this product. | 5 | Pass |
+
+## Demo first screen
+
+| Copy | Words | Result |
+|---|---:|---|
+| Demo — sample data, nothing is saved | 6 | Required banner copy |
+| Reset demo | 2 | Pass |
+| Start my private timeline | 4 | Pass |
+| Sample that cannot change your notes | 6 | Pass |
+| Review a filled sample timeline | 6 | Pass |
+| Five sample notes show the printable timeline before you add anything. | 11 | Pass |
+| Latest sample note | 3 | Pass |
+| Worse than usual after two poor nights. | 7 | Pass |
+| Add another note | 3 | Pass |
+
+## README prose
+
+Every README sentence was counted. The longest sentence has 18 words. The words “isolated,” “handoff,” “SPA fallback,” “immutable hashed-asset caching,” “production billing route,” “deployed asset identity,” “useful,” and “maintenance” are absent.
 
 ## Terminology
 
-| Concept | One term used |
+| Concept | One term used in user-facing copy |
 |---|---|
-| A daily saved item | note |
-| Collection of saved notes | timeline |
-| Appointment handoff | visit brief |
-| Pre-filled isolated experience | demo |
-| Downloadable copy | backup |
-| Optional purchase | one-time unlock |
+| One saved day | note |
+| Collection of notes | timeline |
+| Printable output | visit brief |
+| Medicine field | medicine changes |
+| Optional paid result | cover note |
+| Portable saved file | backup |
+
+“Notebook” appears only in the wordmark’s visual theme and the notebook-specific 404. It does not name stored data.

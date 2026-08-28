@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { chromium } from '@playwright/test';
 
 const origin = process.env.LIVE_URL || 'https://care-visit-brief.sociobot.in';
 const checkout = 'https://api.sociobot.in/api/v1/products/care-visit-brief/checkout';
@@ -46,5 +47,45 @@ const verifyResponse = await fetch(verify);
 assert(verifyResponse.status === 200, `license verification returned HTTP ${verifyResponse.status}`);
 const verdict = await verifyResponse.json();
 assert(verdict.valid === false, 'an invalid release-check token was accepted');
+
+const browser = await chromium.launch();
+try {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const routes = [
+    ['/', 'Care Visit Brief — Print a clear symptom timeline', `${origin}/`],
+    ['/log', 'Symptom timeline — Care Visit Brief', `${origin}/log`],
+    ['/?demo=1', 'Demo — Care Visit Brief', `${origin}/?demo=1`],
+    ['/privacy', 'Privacy — Care Visit Brief', `${origin}/privacy`],
+    ['/terms', 'Terms — Care Visit Brief', `${origin}/terms`]
+  ];
+  for (const [path, title, canonical] of routes) {
+    const response = await page.goto(`${origin}${path}`, { waitUntil: 'networkidle' });
+    assert(response?.status() === 200, `${path} returned HTTP ${response?.status()}`);
+    assert(await page.title() === title, `${path} has the wrong title`);
+    assert(await page.locator('link[rel="canonical"]').getAttribute('href') === canonical, `${path} has the wrong canonical URL`);
+    assert(await page.locator('meta[property="og:url"]').getAttribute('content') === canonical, `${path} has the wrong Open Graph URL`);
+    assert(await page.locator('meta[name="twitter:title"]').getAttribute('content') === title, `${path} has the wrong Twitter title`);
+  }
+  await page.goto(`${origin}/?demo=1`, { waitUntil: 'networkidle' });
+  const sample = page.getByText('Worse than usual after two poor nights.').first();
+  assert(await sample.isVisible(), 'demo sample note is not visible');
+  const box = await sample.boundingBox();
+  assert(box && box.y + box.height <= 844, 'demo sample note is below the first mobile viewport');
+  assert(await page.locator('.entry-card').count() === 5, 'demo does not contain five sample notes');
+  const termsText = await page.goto(`${origin}/terms`, { waitUntil: 'networkidle' }).then(() => page.locator('main').innerText());
+  assert(termsText.includes('$12 USD unlock is a one-time purchase'), 'terms do not state the USD 12 one-time purchase');
+  assert(termsText.includes('Sociobot and Dodo are the merchant of record'), 'terms do not state the merchants of record');
+  const missing = await page.goto(`${origin}/missing-page`, { waitUntil: 'networkidle' });
+  assert(missing?.status() === 404, `unknown route returned HTTP ${missing?.status()}`);
+  for (const selector of ['header', 'footer', 'main', 'link[rel="canonical"]', 'meta[name="description"]', 'meta[property="og:title"]', 'link[rel="icon"]']) {
+    assert(await page.locator(selector).count() === 1, `404 is missing ${selector}`);
+  }
+  assert(await page.getByRole('link', { name: 'Privacy' }).count() >= 1, '404 is missing Privacy link');
+  assert(await page.getByRole('link', { name: 'Terms' }).count() >= 1, '404 is missing Terms link');
+  await context.close();
+} finally {
+  await browser.close();
+}
 
 console.log(`Live release checks passed for ${origin}`);

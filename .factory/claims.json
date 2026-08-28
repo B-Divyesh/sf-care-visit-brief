@@ -1,51 +1,21 @@
 [
-  {
-    "id": "csv-export",
-    "claim": "Exports the log as CSV",
-    "where": "Visit brief tools",
-    "test": "npm test -- --grep @claim:csv-export",
-    "sandbox": "demo data; downloaded CSV has the header and one row per sample record"
-  },
-  {
-    "id": "offline-reload",
-    "claim": "Works after the first visit offline",
-    "where": "Landing facts, README",
-    "test": "npm test -- --grep @claim:offline-reload",
-    "sandbox": "fresh browser context visits /demo, then goes offline and reloads /demo"
-  },
-  {
-    "id": "device-only",
-    "claim": "Stays on this device",
-    "where": "Landing facts, Privacy page, README",
-    "test": "npm test -- --grep @claim:device-only",
-    "sandbox": "fresh browser context uses /demo and exports a backup while request URLs are observed"
-  },
-  {
-    "id": "encrypted-backup",
-    "claim": "Downloads an encrypted backup you can restore",
-    "where": "Visit brief tools, README",
-    "test": "npm test -- --grep @claim:encrypted-backup",
-    "sandbox": "demo data; password-protected download has AES-GCM metadata, does not expose sample text, and restores after a deletion"
-  },
-  {
-    "id": "print-brief",
-    "claim": "Makes a printable visit brief",
-    "where": "Landing, Visit brief tools, README",
-    "test": "npm test -- --grep @claim:print-brief",
-    "sandbox": "demo data; print window contains the sample chronology"
-  },
-  {
-    "id": "json-backup",
-    "claim": "Exports a record you can keep",
-    "where": "Landing facts, README",
-    "test": "npm test -- --grep @claim:json-backup",
-    "sandbox": "demo data; downloaded JSON has the portable versioned record and every sample entry"
-  },
-  {
-    "id": "paid-unlock",
-    "claim": "$12 one-time unlock includes a personal cover note for printed briefs",
-    "where": "Landing, paid section, README",
-    "test": "npm test -- --grep @claim:paid-unlock",
-    "sandbox": "fresh /demo entry; recorded Sociobot verification response; one verification request; demo-only note storage; returned license unlocks the cover note and the printed brief contains it"
-  }
+  {"id":"csv-export","claim":"Exports one CSV row for every saved note","where":"Visit brief tools, README","test":"npm test -- --grep @claim:csv-export","sandbox":"fresh ?demo=1 data; downloaded CSV has the header and exactly five sample rows"},
+  {"id":"offline-reload","claim":"Works offline after the first visit","where":"Landing facts, README","test":"npm test -- --grep @claim:offline-reload","sandbox":"fresh profile warms ?demo=1, clears HTTP cache, goes offline, and opens the sample in a new tab"},
+  {"id":"device-only","claim":"Notes stay on this device and the app uses no analytics","where":"Landing facts, Privacy, README","test":"npm test -- --grep @claim:device-only","sandbox":"fresh ?demo=1 flow saves and exports while every request is recorded; only the product origin is contacted"},
+  {"id":"encrypted-backup","claim":"New encrypted backups use 600,000 PBKDF2 iterations and legacy 10,000-iteration backups still restore","where":"Visit brief tools, README","test":"npm test -- --grep @claim:encrypted-backup","sandbox":"inspect and restore a new AES-GCM backup, then restore a recorded legacy-format fixture"},
+  {"id":"print-brief","claim":"Prints saved notes in the selected range as a one-page A4 visit brief and warns when the range is too long","where":"Landing, Visit brief tools, README","test":"npm test -- --grep @claim:print-brief","sandbox":"fresh ?demo=1 plus unsaved and out-of-range text; render PDF, assert one page, exclusions, and overflow warning"},
+  {"id":"json-backup","claim":"Exports a versioned JSON backup with every saved note","where":"Visit brief tools, README","test":"npm test -- --grep @claim:json-backup","sandbox":"fresh ?demo=1 data; downloaded JSON is version 1 and contains all five sample notes"},
+  {"id":"demo-first-screen","claim":"One click opens an isolated five-note sample with real content visible in the first mobile viewport","where":"Landing primary action, demo heading, README","test":"npm test -- --grep @claim:demo-first-screen","sandbox":"fresh 390x844 context opens ?demo=1 and checks the banner, controls, count, content, and viewport position"},
+  {"id":"daily-note-fields","claim":"A daily note keeps its severity, symptom, possible trigger, medicine change, and note text after reload","where":"Daily note form, README","test":"npm test -- --grep @claim:daily-note-fields","sandbox":"fresh ?demo=1 saves every field type, reloads, and inspects the saved note and visit brief"},
+  {"id":"blank-days","claim":"Days without a note stay blank and produce no missed-day warning","where":"Timeline, How it works, README","test":"npm test -- --grep @claim:blank-days","sandbox":"fresh ?demo=1 saves notes across a date gap and checks for no generated dates or warning"},
+  {"id":"safety-boundary","claim":"The app does not diagnose, interpret symptoms, recommend treatment, or contact a clinician","where":"Daily note form, safety section, Terms, README","test":"npm test -- --grep @claim:safety-boundary","sandbox":"fresh ?demo=1 saves, exports, and prints exact user text while recording requests and checking the disclaimer"},
+  {"id":"free-core","claim":"Saving, restoring, CSV, JSON, encrypted backup, print, and safety information need no license","where":"Landing paid section, README","test":"npm test -- --grep @claim:free-core","sandbox":"fresh unlicensed /log exercises every listed core action and confirms only the cover-note field is absent"},
+  {"id":"demo-isolation","claim":"Demo changes, reset, and exit cannot change the real timeline","where":"Demo banner, README, demo documentation","test":"npm test -- --grep @claim:demo-isolation","sandbox":"save a real note, mutate and reset ?demo=1, exit, then inspect both storage namespaces and the real note"},
+  {"id":"paid-unlock","claim":"$12 USD paid once adds a personal cover note to printed briefs","where":"Landing facts, paid section, Terms, README","test":"npm test -- --grep @claim:paid-unlock","sandbox":"recorded product fixture asserts USD 12 and one-time billing; a valid-license fixture unlocks and prints a cover note"},
+  {"id":"license-data-boundary","claim":"License restoration sends only the entered license token to Sociobot","where":"Privacy, README","test":"npm test -- --grep @claim:license-data-boundary","sandbox":"fresh /log intercepts the full verification request and checks origin, method, query fields, empty body, and no note text"},
+  {"id":"license-restore","claim":"The same license token restores the cover-note feature on another device without copying health notes","where":"Paid section, README","test":"npm test -- --grep @claim:license-restore","sandbox":"two clean contexts use one valid token; the second unlocks but has none of the first context's notes"},
+  {"id":"billing-policy","claim":"Sociobot and Dodo are the merchant of record, and a refund revokes the license","where":"Terms","test":"npm test -- --grep @claim:billing-policy","sandbox":"recorded product, active-license, and refunded-license fixtures check the wording and removal of the paid field"},
+  {"id":"build-output","claim":"The production build creates dist/index.html","where":"README developer section","test":"npm test -- --grep @claim:build-output","sandbox":"npm test builds first; the tagged test checks dist and dist/index.html"},
+  {"id":"deployment-config","claim":"The static config serves app routes, caches versioned assets, adds security headers, and returns the complete 404 page","where":"README developer section","test":"npm test -- --grep @claim:deployment-config","sandbox":"inspect built config and 404 for rewrites, caching, headers, response override, shell, legal links, and metadata"},
+  {"id":"live-deployment","claim":"The live check verifies production billing, response policy, route metadata, 404, and deployed asset identity","where":"README developer section","test":"LIVE_CLAIM=1 npm test -- --grep @claim:live-deployment","sandbox":"after deployment, compare live status, metadata, policies, billing, service worker, and asset hashes with the local build"}
 ]
