@@ -24,3 +24,7 @@ The landing page uses one original generated still-life: an open ruled notebook 
 ## Accessibility and dark treatment
 
 This is intentionally a light-paper product: paper is a task cue, not a theme preference. The palette is explicitly painted, and system high-contrast colors remain legible. Text and interactive outlines use ink/oxide values that meet the stated contrast target. Focus is a 3px ink outline with a paper offset.
+
+## Polish round 1 extensions
+
+The demo preview uses the same oxide margin rule, paper shadow, serif date, and clipped-sheet geometry as saved notes. The A4 visit brief removes app chrome but keeps the ink, oxide rule, and ruled chronology. This makes the sample visible sooner without introducing a second visual language. Mobile navigation keeps 8px between 44px targets. No new image asset was needed; the original generated still-life and its provenance remain unchanged.

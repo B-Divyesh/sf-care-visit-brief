@@ -1,58 +1,68 @@
-# Review 1 handoff — FAIL
+# Care Visit Brief — polish round 1 handoff
 
-**Candidate reviewed:** `61060740242176ac2d1e960f01e918b6caffb71e`
+**Status:** complete  
+**Live URL:** https://care-visit-brief.sociobot.in  
+**Date:** 2026-08-28
 
-**Live URL:** https://care-visit-brief.sociobot.in
+## What changed
 
-**Reviewed:** 2026-08-28
+- Made `/?demo=1` the one-click canonical demo and placed a realistic sample note in the first mobile viewport.
+- Kept demo notes, license state, and cover note in `demo:` storage. Reset and exit leave the real timeline unchanged.
+- Rebuilt the print view as a compact one-page A4 visit brief. Long selected ranges now ask for a shorter range instead of silently making a second page.
+- Expanded `.factory/claims.json` from seven partial claims to 19 complete contracts. Each has exactly one tagged test.
+- Added recorded product and license fixtures for price, one-time purchase, merchant, restore, privacy, and refund-revocation behavior.
+- Added route-specific canonical, Open Graph, Twitter, title, and description updates. Browser history restores heading focus and metadata.
+- Rebuilt the true HTTP 404 with the shared header, footer, legal links, favicon, canonical, and social metadata.
+- Standardized **note**, **timeline**, **visit brief**, and **medicine changes**. Rewrote the first screen, paid heading, actions, README, and legal copy.
+- Preserved the handwritten lab-notebook identity. The new preview and print sheet use the existing paper, ink, oxide rule, serif type, and clipped-note grammar.
+- Updated the catalog description to: “Turn daily symptom notes into a private, printable visit brief for your next appointment.”
 
-Adversarial first-read review 1 is complete. The full report is
-`.factory/review-1.md`. Product code was not modified.
+No runtime AI was added because note capture and exact printing must remain deterministic, private, and offline. No new generated image was needed; existing asset provenance remains in `.factory/design.md`.
 
-## What was done
+## Verification
 
-- Opened the live site cold at 390 × 844 and 1440 × 900 before scrolling.
-- Audited all live landing and README copy with word counts and rewrite
-  findings.
-- Exercised the demo banner, sample data, Reset, Start for real, IndexedDB
-  namespace isolation, real-note preservation, request interception, and live
-  offline reload.
-- Ran all seven `.factory/claims.json` commands individually after `npm ci`.
-- Checked every app route, metadata, real 404, internal/external links,
-  browser Back, route focus/announcement, and the prior handoff's repair areas.
-- Rendered the five-entry sample brief to A4 PDF; Chromium produced two pages.
-- Ran the full suite, production build, live deployment checks, factory URL
-  verifier, and live Playwright Axe scans.
-
-## Verification results
+From a clean clone at the repair commit:
 
 ```sh
 npm ci
-for claim_id in csv-export offline-reload device-only encrypted-backup print-brief json-backup paid-unlock; do
-  npm test -- --grep "@claim:${claim_id}"
-done
 npm test
-npm run test:live
 ```
 
-- Seven claim commands: all executed; each reported 1 passing test.
-- Full suite: 27/27 passed.
-- Build: passed; `dist/` produced; JS 27.92 KB raw / 10.18 KB gzip.
-- Live checks: passed.
-- Live Axe: zero WCAG 2 A/AA violations on all app/legal routes and the 404.
-- Factory URL verifier: no console errors or basic semantic failures.
+- Full suite: 40 passed; one deployment-only test intentionally skipped until the live build exists.
+- Every 18 non-live `.factory/claims.json` command: passed independently.
+- Build: passed and produced `dist/index.html`.
+- JS: 31.27 KB raw / 11.15 KB gzip.
+- CSS: 11.61 KB raw / 3.38 KB gzip.
+- Hero: 50 KB.
+- Playwright Axe: zero serious or critical WCAG 2 A/AA violations on home, timeline, both demo URLs, Privacy, Terms, and unknown SPA route.
+- Keyboard, focus, 44px mobile targets, undo, corrupt-data recovery, multi-tab merge, offline service worker, privacy request audit, and billing fixtures: passed.
+- URL verifier: no console errors; one `h1`; `lang=en`; one main; no missing alt or unnamed buttons.
+- Lighthouse mobile: Performance 100, Accessibility 100, Best Practices 100, SEO 100; LCP 1.36s; CLS 0.
 
-## Known gaps / next steps
+Evidence:
 
-The verdict is FAIL with 25 findings. Blocking items are:
+- Finding map: `.factory/polish-1.md`
+- First mobile demo: `.factory/polish-1/demo-mobile-first-screen.png`
+- One-page PDF: `.factory/polish-1/sample-visit-brief.pdf`
+- Local verifier: `.factory/polish-1/local-verify/verify.json`
+- Local Lighthouse: `.factory/polish-1/local-lighthouse.json`
+- Post-deploy verifier: `.factory/polish-1/live-verify/verify.json`
 
-1. The first demo sample card is 1,882 px below the top on a 390 px screen, so
-   the post-click first screen does not show the sample in use.
-2. The five-entry shipped sample brief renders as two A4 pages, contrary to the
-   brief's one-page contract.
-3. The `paid-unlock` claim test does not assert its `$12 one-time` terms.
+After deployment, the deployment-only claim is run from a second clean clone:
 
-Major remaining work includes registering all public claims, making route
-canonical/social metadata route-specific, and giving the real 404 the common
-site shell and metadata. Minor copy and terminology findings are enumerated
-with exact rewrites in `.factory/review-1.md`.
+```sh
+LIVE_CLAIM=1 npm test -- --grep @claim:live-deployment
+```
+
+## Deploy
+
+```sh
+npm ci
+npm test
+npm run build
+/opt/fleet/lib/deploy-static.sh care-visit-brief dist
+```
+
+## Known gaps
+
+None. All F-1-1 through F-1-25 findings are closed and mapped in `.factory/polish-1.md`.
