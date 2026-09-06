@@ -1,3 +1,124 @@
+# Care Visit Brief — repair 6 handoff
+
+**Status:** PASS; the review-5 quality-gate finding is closed
+
+**Repair implementation:** `2c90f150efa61c3b05c1eb033ecd93198dc782d9`
+**Last product-runtime change:** `091d2f19b919919323c182453f4f118c82e35824`
+**Deployment:** `09777afb-b712-48eb-af87-b257d9aacd03`
+**Live URL:** <https://care-visit-brief.sociobot.in>
+**Verified:** 2026-09-06
+
+## What changed
+
+- Replaced the hard-coded `2026-08-28` date assertion with a clock-controlled
+  outcome test. It fixes the browser at 2030-02-03, verifies that the form
+  starts on that date, rejects 2030-02-04 through the native constraint, and
+  then rejects it again through the app guard after that constraint is removed.
+- The regression also proves that both rejected submissions leave the timeline
+  empty, that a note for the fixed current date saves, and that its
+  formula-leading CSV value remains neutralized.
+- Made the print-overflow claim wait for each extra note to appear before
+  continuing. This keeps the claim focused on the observable saved-note result
+  and removes a timing race.
+- No runtime source, product copy, price, storage model, visual asset, or public
+  claim changed. The deployed JS and CSS remain byte-identical to the last
+  product-runtime commit, `091d2f1`.
+
+## Clean verification
+
+A fresh local clone of `2c90f15` ran `npm ci` with zero reported
+vulnerabilities. The documented gate then passed:
+
+```sh
+npm test
+npm run build
+```
+
+The full suite reported **42 passed and one intentional deployment-only
+skip**. The build created `dist/index.html`; initial JS is 32.58 KB raw /
+11.53 KB gzip and CSS is 11.61 KB raw / 3.38 KB gzip.
+
+Every one of the 19 commands in `.factory/claims.json` was then run separately
+after `npm ci`. All 18 local claims passed. The deployment-only command passed
+against production and confirmed the USD 12 one-time offer, route metadata,
+security headers, true 404, service worker, and exact deployed JS/CSS hashes.
+An initial discarded orchestration attempt addressed the clean clone before
+its dependencies were installed and could not find `tsc`; no result from that
+pre-prerequisite attempt is counted here.
+
+## Deployment and live checks
+
+The existing `sf-care-visit-brief` Azure Static Web App in `centralus` was
+reused. The static deploy succeeded as deployment
+`09777afb-b712-48eb-af87-b257d9aacd03`; the custom HTTPS origin returned 200.
+No database, backend, replica, billing registration, DNS ownership, or other
+product was changed. The product is a local-first static PWA, so server SQLite
+and backend health/restart checks do not apply.
+
+Fresh 390 × 844 phone and 1440 × 900 desktop contexts confirmed the headline
+“Turn symptom notes into a visit brief,” the audience sentence, and **Try it
+with sample data** before scrolling. The phone facts end at 721 px. One click
+opened five realistic notes; the latest sample ends at 612 px.
+
+The persistent demo banner remained after a demo save and reset. Reset removed
+the demo-only note, **Start my private timeline** cleared `demo:entries` and
+all `demo:` local state, and the separately saved real note remained. Normal
+landing/demo use contacted only the product origin. The five-note sample
+rendered as one A4 PDF page. A fresh service-worker context cleared its HTTP
+cache and reopened the sample offline.
+
+All product routes returned the expected titles, one h1, and one main. The
+deliberate unknown route returned HTTP 404 with the shared shell and recovery
+links. Privacy and Terms returned 200; the checkout returned HTTPS 303.
+Keyboard focus reached the skip link and moved to the route heading. At 390 px
+the page had no horizontal overflow and all 42 inspected interactive targets
+were at least 44 × 44 px. Reduced motion computed to 0.01 ms.
+
+`/opt/fleet/lib/verify-url.sh` passed with no errors, `lang=en`, one h1, one
+main, complete alt text, and named buttons. Fresh Axe WCAG 2 A/AA scans found
+zero serious or critical issues across `/`, `/log`, `/?demo=1`, `/demo`,
+`/privacy`, `/terms`, and the designed 404.
+
+Mobile Lighthouse scored **100 Performance, 100 Accessibility, 100 Best
+Practices, and 100 SEO**. LCP was 1.3 s, CLS was 0, total blocking time was
+0 ms, and transfer was 114 KiB. The first Lighthouse browser process crashed
+in the container; a retry with shared-memory-safe Chromium flags completed and
+is the result reported here.
+
+## Earlier findings
+
+- Review 5's only finding is closed by the clock-controlled normal, invalid,
+  and recovery-path regression plus the passing clean full suite.
+- Review 1 findings F-1-1 through F-1-25 remain closed by the populated
+  first-viewport demo, one-page print, 19-claim registry, route metadata,
+  complete 404, consistent terminology, and plain copy checks.
+- Review 2 finding F-2-1 remains closed by the Back/Forward scroll and heading
+  focus regression.
+- Review 3 findings F-1-22 and F-3-1 through F-3-5 remain closed by the plain
+  headings, caption, README, and 404 regressions.
+- Verification rounds 1 through 4 remain closed by current malformed-backup,
+  concurrent-write, encrypted/legacy restore, deletion undo, future-date, CSV,
+  update, cache, touch-target, demo-local-state, billing, route, and print
+  coverage. Review 4 and verification 5 had no open product finding.
+
+## Evidence and known gaps
+
+- `/work/.evidence/repair-6-live/` contains the current phone/desktop screens,
+  demo and 404 screens, one-page sample PDF, URL verification, route/Axe/demo/
+  offline audit, and Lighthouse JSON.
+- `/work/.evidence/catalog-description.txt` matches the 70-character,
+  verb-first `.factory/catalog-description.txt`.
+- The checkout and production product registration are active. No payment was
+  attempted; recorded product and entitlement fixtures cover the unlock,
+  restoration, refund, and license-data boundary without inventing a payment.
+- No AI feature was added. Deterministic local formatting is sufficient for
+  this sensitive offline job and avoids a new health-data disclosure path.
+
+No known defect or deferred minor finding remains in the assigned product
+scope.
+
+---
+
 # Care Visit Brief — review 5 handoff
 
 **Status:** FAIL; one quality-gate finding is open
