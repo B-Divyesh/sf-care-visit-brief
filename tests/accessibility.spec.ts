@@ -144,18 +144,31 @@ test('390px controls meet the 44px touch target and do not cause horizontal over
 });
 
 test('future dates and CSV formulas are made safe', async ({ page }) => {
+  const today = '2030-02-03';
+  const tomorrow = '2030-02-04';
+  await page.clock.setFixedTime(new Date(`${today}T12:00:00Z`));
   await page.goto('/log');
-  // The native max constraint stops an accidental future date before submit.
-  await expect(page.getByLabel('Date')).toHaveAttribute('max', '2026-08-28');
+  const dateInput = page.getByLabel('Date');
+  await expect(dateInput).toHaveValue(today);
+
+  // The browser rejects tomorrow while the native date constraint is present.
+  await dateInput.fill(tomorrow);
+  expect(await dateInput.evaluate((input: HTMLInputElement) => input.validity.rangeOverflow)).toBe(true);
+  await page.getByRole('button', { name: 'Save today’s note' }).click();
+  await expect(page.locator('.entry-card')).toHaveCount(0);
+
   // Exercise the app-level guard too, in case an integration strips that
   // native constraint or submits the form programmatically.
-  await page.getByLabel('Date').evaluate((input: HTMLInputElement) => input.removeAttribute('max'));
-  await page.getByLabel('Date').fill('9999-12-31');
+  await dateInput.evaluate((input: HTMLInputElement) => input.removeAttribute('max'));
+  await dateInput.fill(tomorrow);
   await page.getByLabel('What changed? optional').fill('=HYPERLINK("https://example.invalid")');
   await page.getByRole('button', { name: 'Save today’s note' }).click();
   await expect(page.locator('.live')).toContainText('Choose today or an earlier date');
-  await page.getByLabel('Date').fill('2026-08-28');
+  await expect(page.locator('.entry-card')).toHaveCount(0);
+
+  await dateInput.fill(today);
   await page.getByRole('button', { name: 'Save today’s note' }).click();
+  await expect(page.locator('.entry-card')).toHaveCount(1);
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export CSV' }).click();
   const stream = await (await download).createReadStream(); const decoder = new TextDecoder(); let text = '';

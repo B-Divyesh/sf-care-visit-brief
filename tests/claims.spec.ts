@@ -112,9 +112,11 @@ test('@claim:print-brief prints the five saved sample notes on one A4 page and e
   expect((Buffer.from(pdf).toString('latin1').match(/\/Type\s*\/Page\b/g) ?? [])).toHaveLength(1);
   await brief.close();
   for (const date of ['2026-08-24', '2026-08-25', '2026-08-26']) {
+    const note = `Extra saved note on ${date}.`;
     await page.getByLabel('Date').fill(date);
-    await page.getByLabel('What changed? optional').fill(`Extra saved note on ${date}.`);
+    await page.getByLabel('What changed? optional').fill(note);
     await page.getByRole('button', { name: 'Save today’s note' }).click();
+    await expect(page.locator('.entry-card').filter({ hasText: note })).toBeVisible();
   }
   await page.locator('#brief-from').fill('2026-08-01');
   await page.locator('#brief-to').fill('2026-08-28');
