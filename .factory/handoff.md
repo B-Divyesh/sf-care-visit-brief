@@ -1,3 +1,35 @@
+# Care Visit Brief — review 5 handoff
+
+**Status:** FAIL; one quality-gate finding is open
+
+**Implementation candidate:** `091d2f19b919919323c182453f4f118c82e35824`
+**Review documentation:** `7cb744a26595c33edbf3196025e09638182e7b47` (before this report commit)
+**Live URL:** <https://care-visit-brief.sociobot.in>
+**Reviewed:** 2026-09-06
+
+## Review 5 result
+
+- No product code was changed. The report is `.factory/review-5.md`.
+- `npm ci` passed. All 19 registered claim commands, including the deployed
+  asset check, passed individually from the clean checkout. `npm run build`
+  passed and generated `dist/index.html`.
+- Fresh phone and desktop live review, populated demo/reset/isolation, one-page
+  print output, offline reload, links/routes/404, URL verifier, and Axe scans
+  passed. The current candidate closes all earlier review and verification
+  findings; the report records the evidence and disposition matrix.
+- The release is **not accepted** because `npm test` fails one date-dependent
+  non-claim test. `tests/accessibility.spec.ts:149` expects the obsolete fixed
+  max date `2026-08-28`; on the review date the app correctly returns
+  `2026-09-06`. The suite result is 42 passed, 1 failed.
+
+## Next step
+
+Repair the stale date expectation by freezing time or deriving the expected
+date, then run `npm ci && npm test && npm run build` and repeat the full review
+gate. Do not mark the product PASS until that command passes.
+
+---
+
 # Care Visit Brief — review 4 handoff
 
 **Status:** PASS; no review finding remains open
