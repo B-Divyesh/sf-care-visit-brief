@@ -1,4 +1,4 @@
-# Care Visit Brief review 5 — required QA gate fails
+# Print a clear symptom timeline — review 5
 
 **Verdict: FAIL**
 
